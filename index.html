@@ -457,7 +457,7 @@ function navTo(page) {
   S.page = page;
   document.querySelectorAll('.nav-b').forEach(b => {
     const on = b.dataset.nav === page;
-    b.className = `nav-b h-14 w-14 rounded-full grid place-items-center transition ${on ? 'bg-[#f5cf6b] text-[#151515]' : 'bg-[#2a2a2d] text-white hover:bg-[#38383b]'}`;
+    b.className = `nav-b h-14 w-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition ${on ? 'bg-[#f5cf6b] text-[#151515]' : 'bg-[#2a2a2d] text-white hover:bg-[#38383b]'}`;
     b.setAttribute('aria-current', on ? 'page' : 'false');
   });
   window.scrollTo(0, 0);
