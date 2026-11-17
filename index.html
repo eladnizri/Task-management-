@@ -307,26 +307,17 @@ async function handleAuth(e) {
       ({ error: err } = await sb.auth.signInWithPassword({ email, password: pass }));
       if (err) showAuthError('שם משתמש או סיסמה שגויים');
     } else {
-      let signUpData;
-      ({ data: signUpData, error: err } = await sb.auth.signUp({ email, password: pass, options: { data: { display_name: username } } }));
-      if (!err) {
-        if (signUpData?.session) {
-          showAuthInfo('✅ נרשמת בהצלחה! מתחבר...');
-          return;
-        }
-        const { data: loginData, error: loginErr } = await sb.auth.signInWithPassword({ email, password: pass });
-        if (!loginErr && loginData?.session) {
-          showAuthInfo('✅ נרשמת והתחברת בהצלחה! מתחבר...');
-          return;
-        }
-        showAuthError('הרישום הצליח אך הכניסה נכשלה. נסה להתחבר ידנית.');
-        setAuthMode('login'); return;
-      }
-      if (err?.message?.includes('already registered') || err?.message?.includes('already been registered')) {
-        showAuthError('שם משתמש תפוס — בחר אחר');
-      } else {
-        showAuthError(sbErr(err?.message));
-      }
+      const res = await fetch(SB_URL + '/functions/v1/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY },
+        body: JSON.stringify({ username, password: pass }),
+      });
+      const json = await res.json();
+      if (json.error) { showAuthError(json.error); $('authBtn').disabled = false; return; }
+      // user created & confirmed — now sign in
+      const { error: loginErr } = await sb.auth.signInWithPassword({ email, password: pass });
+      if (!loginErr) { showAuthInfo('✅ נרשמת בהצלחה! מתחבר...'); return; }
+      showAuthError('נרשמת — נסה להתחבר'); setAuthMode('login');
     }
     $('authBtn').disabled = false;
     setAuthMode(S.authMode);
