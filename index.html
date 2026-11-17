@@ -9,8 +9,8 @@
 <script>tailwind.config = { darkMode: 'class' }</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/dist/umd/supabase.js"></script>
 <style>
-  :root { --bg:#efeee9; --surface:#fff; --surface2:#e3e2dc; --text:#151515; --muted:#6b6b6b; --line:#d6d5cf; --accent:#f5cf6b; --coral:#e8695a; --ink:#151515 }
-  .dark { --bg:#1c1c1e; --surface:#2a2a2d; --surface2:#38383b; --text:#f4f4f2; --muted:#9a9a9a; --line:#3d3d40 }
+  :root { --bg:#efeee9; --surface:#fff; --surface2:#e3e2dc; --text:#151515; --muted:#6b6b6b; --pill-muted:#5a5a5a; --line:#d6d5cf; --accent:#f5cf6b; --coral:#e8695a; --ink:#151515 }
+  .dark { --bg:#1c1c1e; --surface:#2a2a2d; --surface2:#38383b; --text:#f4f4f2; --muted:#9a9a9a; --pill-muted:#b0b0b0; --line:#3d3d40 }
   body { font-family: 'Heebo', 'Arial Hebrew', sans-serif; background:var(--bg); color:var(--text) }
   .muted { color:var(--muted) }
   .surface2 { background:var(--surface2) }
@@ -25,12 +25,12 @@
   .btn-ghost { border-radius:999px; padding:.6rem 1rem; font-size:.9rem; color:var(--muted) }
   .btn-ghost:hover { background:var(--surface2) }
   .card { border-radius:1.75rem; background:var(--surface) }
-  .pill { border-radius:999px; padding:.5rem 1rem; font-size:.8rem; font-weight:500; background:var(--surface2); color:var(--muted); white-space:nowrap; line-height:1.15; transition:background .15s }
+  .pill { border-radius:999px; padding:.5rem 1rem; font-size:.8rem; font-weight:500; background:var(--surface2); color:var(--pill-muted); white-space:nowrap; line-height:1.15; transition:background .15s }
   .pill.on { background:var(--accent); color:#151515; font-weight:700 }
   .sheet { background:var(--coral); color:#151515 }
   .sheet .input { border-color:rgb(0 0 0 / .28); background:rgb(255 255 255 / .06) }
   .sheet .input:focus-visible { border-color:#151515 }
-  .sheet .input::placeholder { color:rgb(0 0 0 / .45) }
+  .sheet .input::placeholder { color:rgb(0 0 0 / .6) }
   .sheet .btn-primary { background:#151515; color:#fff }
   .sheet .btn-ghost { color:rgb(0 0 0 / .65) } .sheet .btn-ghost:hover { background:rgb(0 0 0 / .08) }
   .no-sb { scrollbar-width:none } .no-sb::-webkit-scrollbar { display:none }
@@ -93,12 +93,15 @@
   </div>
   <nav class="fixed bottom-4 inset-x-0 z-20 flex justify-center safe-bottom pointer-events-none">
     <div class="pointer-events-auto flex gap-2 rounded-full bg-[#151515] p-2 shadow-2xl ring-1 ring-white/10">
-      <button data-nav="tasks" aria-label="משימות" class="nav-b h-14 w-14 rounded-full grid place-items-center transition">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 11h3v9h5v-6h4v6h5v-9h3z"/></svg></button>
-      <button data-nav="calendar" aria-label="לוח שנה" class="nav-b h-14 w-14 rounded-full grid place-items-center transition">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
-      <button data-nav="account" aria-label="חשבון" class="nav-b h-14 w-14 rounded-full grid place-items-center transition">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4.5"/><path d="M3.5 21c.8-4.5 4.3-7 8.5-7s7.7 2.5 8.5 7z"/></svg></button>
+      <button data-nav="tasks" aria-label="משימות" class="nav-b h-14 w-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 11h3v9h5v-6h4v6h5v-9h3z"/></svg>
+        <span class="text-[.55rem] font-semibold leading-none">משימות</span></button>
+      <button data-nav="calendar" aria-label="לוח שנה" class="nav-b h-14 w-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        <span class="text-[.55rem] font-semibold leading-none">לוח</span></button>
+      <button data-nav="account" aria-label="חשבון" class="nav-b h-14 w-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4.5"/><path d="M3.5 21c.8-4.5 4.3-7 8.5-7s7.7 2.5 8.5 7z"/></svg>
+        <span class="text-[.55rem] font-semibold leading-none">חשבון</span></button>
     </div>
   </nav>
 </div>
@@ -235,14 +238,22 @@ const roleName  = id => S.roles.find(r=>r.id===id)?.name  || '';
 // dark role colors get mixed toward off-white so the card's dark text stays readable
 const cardBg = c => { const n=parseInt(c.slice(1),16); const L=(.299*(n>>16)+.587*(n>>8&255)+.114*(n&255))/255; return L>.6 ? c : `color-mix(in srgb, ${c} 50%, #f7f6f1)`; };
 
-function toast(msg, type='ok') {
+function toast(msg, type='ok', undoCb=null) {
   let el = $('_toast');
   if (!el) { el = document.createElement('div'); el.id='_toast'; document.body.appendChild(el); }
-  el.textContent = msg;
+  el.innerHTML = '';
+  const span = document.createElement('span'); span.textContent = msg; el.appendChild(span);
+  if (undoCb) {
+    const btn = document.createElement('button');
+    btn.textContent = ' · בטל';
+    btn.style.cssText = 'font-weight:700;text-decoration:underline;cursor:pointer;background:none;border:none;color:inherit;padding:0;margin:0';
+    btn.onclick = () => { el.classList.remove('show'); undoCb(); };
+    el.appendChild(btn);
+  }
   el.style.background = type==='err' ? '#dc2626' : '#171717';
   el.classList.add('show');
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('show'), 3000);
+  el._t = setTimeout(() => el.classList.remove('show'), 3200);
 }
 
 function sbErr(msg) {
@@ -322,6 +333,14 @@ async function upsertTask(data) {
 
 async function toggleTask(task) {
   const done = !task.done;
+  const idx = S.tasks.findIndex(x => x.id === task.id);
+  if (idx >= 0) { S.tasks[idx] = { ...S.tasks[idx], done }; render(); }
+  if (done) {
+    toast('הושלם ✓', 'ok', async () => {
+      if (idx >= 0) { S.tasks[idx] = { ...S.tasks[idx], done: false }; render(); }
+      await sb.from('tasks').update({ done: false, done_at: null }).eq('id', task.id);
+    });
+  }
   await sb.from('tasks').update({ done, done_at: done ? new Date().toISOString() : null }).eq('id', task.id);
   if (done && task.recurring) {
     const next = nextRecurDate(new Date(task.due), task.recurring);
@@ -391,17 +410,14 @@ function skipImport() {
 }
 
 // ── THEME ──
-const applyTheme = t => { document.documentElement.classList.toggle('dark', t==='dark'); lsSet('td.theme', t); };
-function toggleTheme() {
-  applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark');
-  const isDark = document.documentElement.classList.contains('dark');
-  const btn = $('darkToggleBtn');
-  if (btn) {
-    btn.style.background = isDark ? '#f5cf6b' : '#d4d4d8';
-    const knob = btn.querySelector('span');
-    if (knob) knob.style.transform = `translateX(${isDark ? '1.375rem' : '0.25rem'})`;
-  }
-}
+const applyTheme = t => {
+  const dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('dark', dark);
+  lsSet('td.theme', t);
+};
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (lsGet('td.theme', 'dark') === 'system') applyTheme('system');
+});
 
 // ── NAV ──
 function navTo(page) {
@@ -431,9 +447,9 @@ function taskCard(t) {
       </button>
       <button data-toggle="${t.id}" aria-label="${t.done?'סמן כלא הושלם':'סמן כהושלם'}" aria-pressed="${t.done}"
         class="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#151515] text-white text-lg transition hover:scale-105">
-        ${t.done?'✓':`<span class="h-4 w-4 rounded-full border-2 border-white/80"></span>`}</button>
+        ${t.done?'✓':`<span class="h-4 w-4 rounded-full border-2 border-white/80 grid place-items-center text-[.65rem] opacity-25">✓</span>`}</button>
     </div>
-    <div class="mt-3 flex flex-wrap items-center gap-3 text-sm font-semibold">
+    <div class="mt-3 flex flex-wrap items-center gap-3 text-base font-semibold">
       <span class="inline-flex items-center gap-1.5"><span class="grid h-7 w-7 place-items-center rounded-full bg-black/10">${ICO_CAL}</span>${fmtDate(t.due)}</span>
       <span class="h-4 w-px bg-black/25"></span>
       <span class="inline-flex items-center gap-1.5"><span class="grid h-7 w-7 place-items-center rounded-full bg-black/10">${ICO_CLK}</span>${fmtTime(t.due)}</span>
@@ -466,15 +482,17 @@ function render() {
 function dateStrip() {
   const today = dayStart(new Date());
   const days = Array.from({length:15}, (_,i) => addDays(today, i-2));
-  const pill = (val, on, top, bottom) => `<button data-day="${val}" class="pill ${on?'on':''} shrink-0 text-center ${bottom?'py-2':''}">
+  const pill = (val, on, top, bottom, ariaLabel='') => `<button data-day="${val}" ${ariaLabel?`aria-label="${ariaLabel}"`:''}class="pill ${on?'on':''} shrink-0 text-center ${bottom?'py-2':''}">
     <span class="block">${top}</span>${bottom?`<span class="block text-[.7rem]">${bottom}</span>`:''}</button>`;
   return `<div id="dayStrip" class="no-sb -mx-5 mb-5 flex gap-2 overflow-x-auto px-5 py-1">
-    ${pill('', !S.day, 'הכל')}
+    ${pill('', !S.day, 'הכל', '', 'כל הימים')}
     ${days.map(d => {
       const isT = sameDay(d, today), cnt = S.tasks.filter(t=>!t.done&&sameDay(new Date(t.due),d)).length;
+      const dateStr = d.toLocaleDateString(HE,{day:'numeric',month:'short'});
       return pill(d.getTime(), S.day && sameDay(S.day,d),
-        d.toLocaleDateString(HE,{day:'numeric',month:'short'}),
-        isT ? 'היום' : (cnt ? '•'.repeat(Math.min(cnt,3)) : d.toLocaleDateString(HE,{weekday:'short'})));
+        dateStr,
+        isT ? 'היום' : (cnt ? '•'.repeat(Math.min(cnt,3)) : d.toLocaleDateString(HE,{weekday:'short'})),
+        cnt ? `${dateStr}, ${cnt} משימות` : dateStr);
     }).join('')}
   </div>`;
 }
@@ -558,12 +576,15 @@ function renderCalendar() {
       ${grid.map(d=>{
         const list = S.tasks.filter(t=>!t.done&&sameDay(new Date(t.due),d));
         const isToday = sameDay(d,new Date());
-        return `<div class="min-h-[5.5rem] rounded-2xl p-1 ${d.getMonth()===month?'surface2':'opacity-40'}">
+        const narrow = window.innerWidth < 500;
+        return `<button data-goday="${d.getTime()}" class="min-h-[5.5rem] rounded-2xl p-1 text-start w-full ${d.getMonth()===month?'surface2 hover:opacity-90':'opacity-40'}">
           <div class="mb-1 grid h-6 w-6 place-items-center rounded-full text-xs font-bold tabular-nums ${isToday?'bg-[#f5cf6b] text-[#151515]':''}">${d.getDate()}</div>
-          ${list.slice(0,3).map(t=>`<button data-edit="${t.id}" class="mb-0.5 block w-full truncate rounded-lg px-1.5 py-0.5 text-start text-[.7rem] font-semibold text-[#151515] hover:opacity-80"
-            style="background:${cardBg(roleColor(t.role_id))}">${esc(t.title)}</button>`).join('')}
-          ${list.length>3?`<button data-goday="${d.getTime()}" class="px-1 text-[.7rem] font-semibold muted">+${list.length-3}</button>`:''}
-        </div>`;
+          ${narrow
+            ? list.slice(0,4).map(t=>`<span class="inline-block mb-0.5 me-0.5 h-2 w-2 rounded-full" style="background:${roleColor(t.role_id)}"></span>`).join('')
+            : list.slice(0,3).map(t=>`<span data-edit="${t.id}" class="mb-0.5 block w-full truncate rounded-lg px-1.5 py-0.5 text-[.7rem] font-semibold text-[#151515]"
+            style="background:${cardBg(roleColor(t.role_id))}">${esc(t.title)}</span>`).join('')}
+          ${!narrow && list.length>3?`<span class="px-1 text-[.7rem] font-semibold muted">+${list.length-3}</span>`:''}
+        </button>`;
       }).join('')}
     </div>
   </div>`;
@@ -572,6 +593,7 @@ function renderCalendar() {
 function renderAccount() {
   const user = S.user;
   const dn = user?.user_metadata?.display_name || user?.email?.split('@')[0] || '';
+  const currentTheme = lsGet('td.theme', 'dark');
   const isDark = document.documentElement.classList.contains('dark');
   $('pageHeader').innerHTML = `<div class="flex items-center justify-between">
     <h1 class="text-3xl font-bold">חשבון</h1>
@@ -629,13 +651,10 @@ function renderAccount() {
     <section class="card p-5 mb-4">
       <h2 class="text-sm font-semibold mb-3">🎨 מראה</h2>
       <div class="flex items-center justify-between">
-        <span class="text-sm">מצב כהה</span>
-        <button dir="ltr" type="button" id="darkToggleBtn" onclick="toggleTheme()" aria-label="מצב כהה"
-          class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400"
-          style="background:${isDark?'#f5cf6b':'#d4d4d8'}">
-          <span class="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200"
-            style="transform:translateX(${isDark?'1.375rem':'0.25rem'})"></span>
-        </button>
+        <span class="text-sm">ערכת צבעים</span>
+        <div class="flex surface2 rounded-full p-1 gap-1">
+          ${[['light','בהיר'],['dark','כהה'],['system','מערכת']].map(([v,lbl])=>`<button onclick="applyTheme('${v}');renderAccount()" class="rounded-full px-3 py-1 text-xs font-semibold transition ${currentTheme===v?'bg-white dark:bg-[#151515] shadow-sm':''}">${lbl}</button>`).join('')}
+        </div>
       </div>
     </section>`;
   loadEmailSettings();
