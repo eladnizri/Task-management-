@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roles Dashboard</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>tailwind.config = { darkMode: 'class' }</script>
+<style>
+  [data-view-panel] { animation: fade .18s ease both }
+  @keyframes fade { from { opacity: 0; transform: translateY(2px) } to { opacity: 1; transform: none } }
+  .dark .role-c { filter: brightness(1.4) }   /* role hues read too dim on near-black */
+  dialog::backdrop { background: rgb(0 0 0 / .45) }
+  dialog[open] { animation: pop .16s ease both }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.99) } to { opacity: 1; transform: none } }
+</style>
+</head>
+<body class="h-full bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 antialiased">
+
+<div class="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+
+  <header class="flex flex-wrap items-center gap-3">
+    <h1 class="text-lg font-semibold tracking-tight">Roles Dashboard</h1>
+    <span id="summary" class="text-sm text-neutral-500 dark:text-neutral-400"></span>
+    <div class="ml-auto flex items-center gap-2">
+      <button id="themeBtn" class="rounded-lg border border-neutral-200 px-2.5 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-900" aria-label="Toggle dark mode">
+        <span class="dark:hidden">Dark</span><span class="hidden dark:inline">Light</span>
+      </button>
+      <button id="newBtn" class="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200">New task</button>
+    </div>
+  </header>
+
+  <!-- role filters -->
+  <div class="mt-5 flex flex-wrap items-center gap-2" id="roleFilters" role="group" aria-label="Filter by role"></div>
+
+  <!-- view switch -->
+  <div class="mt-4 flex flex-wrap items-center gap-3 border-b border-neutral-200 pb-3 dark:border-neutral-800">
+    <div class="flex rounded-lg border border-neutral-200 p-0.5 dark:border-neutral-800" id="viewTabs" role="tablist">
+      <button data-view="list" role="tab" class="rounded-md px-3 py-1.5 text-sm">List</button>
+      <button data-view="schedule" role="tab" class="rounded-md px-3 py-1.5 text-sm">Schedule</button>
+      <button data-view="calendar" role="tab" class="rounded-md px-3 py-1.5 text-sm">Calendar</button>
+    </div>
+    <div id="spanTabs" class="hidden rounded-lg border border-neutral-200 p-0.5 dark:border-neutral-800">
+      <button data-span="day" class="rounded-md px-3 py-1.5 text-sm">Day</button>
+      <button data-span="week" class="rounded-md px-3 py-1.5 text-sm">Week</button>
+    </div>
+    <div id="nav" class="hidden items-center gap-1">
+      <button data-nav="-1" class="rounded-md border border-neutral-200 px-2 py-1 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-900" aria-label="Previous">&lsaquo;</button>
+      <button data-nav="0" class="rounded-md border border-neutral-200 px-2 py-1 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-900">Today</button>
+      <button data-nav="1" class="rounded-md border border-neutral-200 px-2 py-1 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-900" aria-label="Next">&rsaquo;</button>
+      <span id="navLabel" class="ml-2 text-sm font-medium"></span>
+    </div>
+    <label class="ml-auto flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+      <input id="showDone" type="checkbox" class="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700" checked>
+      Show completed
+    </label>
+  </div>
+
+  <main id="panel" class="mt-5"></main>
+</div>
+
+<!-- task modal -->
+<dialog id="dlg" class="w-[min(32rem,92vw)] rounded-2xl bg-white p-0 text-neutral-900 shadow-xl dark:bg-neutral-900 dark:text-neutral-100">
+  <form id="form" class="p-5">
+    <h2 id="dlgTitle" class="text-base font-semibold">New task</h2>
+    <div class="mt-4 space-y-3">
+      <label class="block">
+        <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Title</span>
+        <input name="title" required maxlength="120" class="mt-1 w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500">
+      </label>
+      <label class="block">
+        <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Description</span>
+        <textarea name="desc" rows="2" maxlength="600" class="mt-1 w-full resize-none rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500"></textarea>
+      </label>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="block">
+          <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Role</span>
+          <input name="role" required list="roleList" maxlength="40" placeholder="e.g. Day job" class="mt-1 w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500">
+          <datalist id="roleList"></datalist>
+        </label>
+        <label class="block">
+          <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Priority</span>
+          <select name="priority" class="mt-1 w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500">
+            <option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option>
+          </select>
+        </label>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="block">
+          <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Due date &amp; time</span>
+          <input name="due" type="datetime-local" required class="mt-1 w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500">
+        </label>
+        <label class="block">
+          <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Status</span>
+          <select name="done" class="mt-1 w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500">
+            <option value="">Pending</option><option value="1">Completed</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="mt-5 flex items-center gap-2">
+      <button id="delBtn" type="button" class="hidden rounded-lg px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">Delete</button>
+      <button type="button" id="cancelBtn" class="ml-auto rounded-lg px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">Cancel</button>
+      <button type="submit" class="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const PALETTE = ['#2563eb','#db2777','#059669','#d97706','#7c3aed','#0891b2','#dc2626','#65a30d'];
+const PRIO = { high: 'High', medium: 'Medium', low: 'Low' };
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} };
+
+const state = {
+  tasks: load('td.tasks', []),
+  roles: load('td.roles', []),            // [{name, color}]
+  view: 'list', span: 'week', anchor: new Date(),
+  hidden: new Set(load('td.hidden', [])), // hidden role names
+  showDone: true,
+};
+
+/* ---------- pure helpers (covered by ?selftest) ---------- */
+const dayStart = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d, n) => { const x = dayStart(d); x.setDate(x.getDate() + n); return x };
+const startOfWeek = d => addDays(d, -dayStart(d).getDay());          // weeks start Sunday
+const sameDay = (a, b) => dayStart(a).getTime() === dayStart(b).getTime();
+const monthGrid = d => {                                              // 42 days covering the month
+  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+  return Array.from({ length: 42 }, (_, i) => addDays(startOfWeek(first), i));
+};
+const visible = tasks => tasks
+  .filter(t => !state.hidden.has(t.role) && (state.showDone || !t.done))
+  .sort((a, b) => a.due.localeCompare(b.due) || ordPrio(a) - ordPrio(b));
+const ordPrio = t => ['high','medium','low'].indexOf(t.priority);
+const onDay = (tasks, day) => tasks.filter(t => sameDay(new Date(t.due), day));
+
+/* ---------- roles ---------- */
+function roleColor(name) {
+  let r = state.roles.find(r => r.name === name);
+  if (!r) { r = { name, color: PALETTE[state.roles.length % PALETTE.length] }; state.roles.push(r); save('td.roles', state.roles); }
+  return r.color;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const badge = role => `<span class="role-c inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
+  style="background:${roleColor(role)}1f;color:${roleColor(role)}">${esc(role)}</span>`;
+const fmtTime = iso => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const fmtDate = iso => new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+/* ---------- rendering ---------- */
+function render() {
+  // tabs
+  document.querySelectorAll('#viewTabs button').forEach(b => {
+    const on = b.dataset.view === state.view;
+    b.className = `rounded-md px-3 py-1.5 text-sm ${on ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900' : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'}`;
+    b.setAttribute('aria-selected', on);
+  });
+  document.querySelectorAll('#spanTabs button').forEach(b => {
+    const on = b.dataset.span === state.span;
+    b.className = `rounded-md px-3 py-1.5 text-sm ${on ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900' : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'}`;
+  });
+  document.getElementById('spanTabs').classList.toggle('hidden', state.view !== 'schedule');
+  const nav = document.getElementById('nav');
+  nav.classList.toggle('hidden', state.view === 'list');
+  nav.classList.toggle('flex', state.view !== 'list');
+
+  // role filter chips
+  document.getElementById('roleFilters').innerHTML = state.roles.length === 0
+    ? '<span class="text-sm text-neutral-400">No roles yet — add a task to create one.</span>'
+    : state.roles.map(r => {
+        const on = !state.hidden.has(r.name);
+        const n = state.tasks.filter(t => t.role === r.name && !t.done).length;
+        return `<button data-role="${esc(r.name)}" aria-pressed="${on}" class="${on ? 'role-c ' : ''}flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition"
+          style="${on ? `border-color:${r.color};background:${r.color}14;color:${r.color}` : 'border-color:#d4d4d8;color:#a1a1aa'}">
+          <span class="h-2 w-2 rounded-full" style="background:${on ? r.color : '#a1a1aa'}"></span>${esc(r.name)}
+          <span class="text-xs opacity-70">${n}</span></button>`;
+      }).join('');
+
+  const open = state.tasks.filter(t => !t.done).length;
+  const late = state.tasks.filter(t => !t.done && new Date(t.due) < new Date()).length;
+  document.getElementById('summary').textContent =
+    `${open} open${late ? ` · ${late} overdue` : ''} · ${state.tasks.length} total`;
+
+  const ts = visible(state.tasks);
+  const panel = document.getElementById('panel');
+  panel.setAttribute('data-view-panel', state.view);
+  panel.innerHTML = state.view === 'list' ? listView(ts) : state.view === 'schedule' ? scheduleView(ts) : calendarView(ts);
+}
+
+function row(t) {
+  const overdue = !t.done && new Date(t.due) < new Date();
+  return `<li class="group flex items-start gap-3 px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900/60">
+    <input type="checkbox" data-toggle="${t.id}" ${t.done ? 'checked' : ''} aria-label="Complete ${esc(t.title)}"
+      class="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-600">
+    <button data-edit="${t.id}" class="min-w-0 flex-1 text-left">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="truncate text-sm font-medium ${t.done ? 'text-neutral-400 line-through dark:text-neutral-500' : ''}">${esc(t.title)}</span>
+        ${badge(t.role)}
+        ${t.priority === 'low' ? '' : `<span class="text-xs ${t.priority === 'high' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}">${PRIO[t.priority]}</span>`}
+      </div>
+      ${t.desc ? `<p class="mt-0.5 line-clamp-2 text-xs text-neutral-500 dark:text-neutral-400">${esc(t.desc)}</p>` : ''}
+    </button>
+    <span class="shrink-0 text-xs tabular-nums ${overdue ? 'font-medium text-red-600 dark:text-red-400' : 'text-neutral-500 dark:text-neutral-400'}">
+      ${fmtDate(t.due)}, ${fmtTime(t.due)}</span>
+  </li>`;
+}
+
+function listView(ts) {
+  if (!ts.length) return empty();
+  return `<ul class="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-neutral-200 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
+    ${ts.map(row).join('')}</ul>`;
+}
+
+function scheduleView(ts) {
+  const days = state.span === 'day' ? [dayStart(state.anchor)] : Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(state.anchor), i));
+  document.getElementById('navLabel').textContent = state.span === 'day'
+    ? state.anchor.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })
+    : `${days[0].toLocaleDateString([], { month: 'short', day: 'numeric' })} – ${days[6].toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
+  return `<div class="grid gap-3 ${state.span === 'day' ? '' : 'sm:grid-cols-2 lg:grid-cols-7'}">
+    ${days.map(d => {
+      const list = onDay(ts, d);
+      const today = sameDay(d, new Date());
+      return `<section class="rounded-xl border p-3 ${today ? 'border-neutral-900 dark:border-neutral-300' : 'border-neutral-200 dark:border-neutral-800'} bg-white dark:bg-neutral-900">
+        <h3 class="flex items-baseline justify-between text-xs font-semibold uppercase tracking-wide ${today ? '' : 'text-neutral-500 dark:text-neutral-400'}">
+          ${d.toLocaleDateString([], { weekday: 'short' })}
+          <span class="text-sm font-normal tabular-nums">${d.getDate()}</span></h3>
+        <div class="mt-2 space-y-1.5">
+          ${list.length ? list.map(t => `
+            <div class="flex items-start gap-2 rounded-lg p-1.5 hover:bg-neutral-50 dark:hover:bg-neutral-800/60"
+              style="box-shadow:inset 3px 0 0 ${roleColor(t.role)}">
+              <input type="checkbox" data-toggle="${t.id}" ${t.done ? 'checked' : ''} aria-label="Complete ${esc(t.title)}"
+                class="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-neutral-300 dark:border-neutral-600">
+              <button data-edit="${t.id}" class="min-w-0 flex-1 text-left">
+                <div class="text-xs tabular-nums text-neutral-500 dark:text-neutral-400">${fmtTime(t.due)}</div>
+                <div class="truncate text-sm ${t.done ? 'text-neutral-400 line-through dark:text-neutral-500' : ''}">${esc(t.title)}</div>
+                <div class="mt-1">${badge(t.role)}</div>
+              </button></div>`).join('')
+            : '<p class="py-2 text-xs text-neutral-400">—</p>'}
+        </div></section>`;
+    }).join('')}</div>`;
+}
+
+function calendarView(ts) {
+  const grid = monthGrid(state.anchor), month = state.anchor.getMonth();
+  document.getElementById('navLabel').textContent = state.anchor.toLocaleDateString([], { month: 'long', year: 'numeric' });
+  const head = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return `<div class="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+    <div class="grid grid-cols-7 border-b border-neutral-200 text-center text-xs font-medium text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+      ${head.map(h => `<div class="py-2">${h}</div>`).join('')}</div>
+    <div class="grid grid-cols-7">
+      ${grid.map((d, i) => {
+        const list = onDay(ts, d), today = sameDay(d, new Date());
+        return `<div class="min-h-[5.5rem] border-neutral-200 p-1.5 dark:border-neutral-800 ${i % 7 ? 'border-l' : ''} ${i >= 7 ? 'border-t' : ''} ${d.getMonth() === month ? '' : 'bg-neutral-50/60 dark:bg-neutral-950/40'}">
+          <div class="mb-1 text-xs tabular-nums ${today ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900' : 'text-neutral-400'}">${d.getDate()}</div>
+          ${list.slice(0, 3).map(t => `<button data-edit="${t.id}" class="role-c mb-0.5 block w-full truncate rounded px-1 py-0.5 text-left text-xs ${t.done ? 'line-through opacity-50' : ''}"
+            style="background:${roleColor(t.role)}1f;color:${roleColor(t.role)}" title="${esc(t.title)} · ${fmtTime(t.due)}">${fmtTime(t.due)} ${esc(t.title)}</button>`).join('')}
+          ${list.length > 3 ? `<span class="px-1 text-xs text-neutral-400">+${list.length - 3} more</span>` : ''}
+        </div>`;
+      }).join('')}</div></div>`;
+}
+
+const empty = () => `<div class="rounded-xl border border-dashed border-neutral-300 py-16 text-center dark:border-neutral-700">
+  <p class="text-sm text-neutral-500 dark:text-neutral-400">Nothing here yet.</p>
+  <button id="emptyNew" class="mt-3 rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">Add a task</button></div>`;
+
+/* ---------- mutations ---------- */
+function persist() { save('td.tasks', state.tasks); save('td.hidden', [...state.hidden]); render() }
+
+const dlg = document.getElementById('dlg'), form = document.getElementById('form');
+let editing = null;
+
+function openDlg(task) {
+  editing = task || null;
+  document.getElementById('dlgTitle').textContent = task ? 'Edit task' : 'New task';
+  document.getElementById('delBtn').classList.toggle('hidden', !task);
+  document.getElementById('roleList').innerHTML = state.roles.map(r => `<option value="${esc(r.name)}">`).join('');
+  form.reset();
+  if (task) {
+    form.title.value = task.title; form.desc.value = task.desc || ''; form.role.value = task.role;
+    form.priority.value = task.priority; form.due.value = task.due; form.done.value = task.done ? '1' : '';
+  } else {
+    const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1);
+    form.due.value = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+    form.role.value = state.roles[0]?.name || '';
+  }
+  dlg.showModal(); form.title.focus();
+}
+
+form.addEventListener('submit', e => {
+  e.preventDefault();
+  const f = new FormData(form);
+  const t = {
+    id: editing?.id || crypto.randomUUID(),
+    title: f.get('title').trim(), desc: f.get('desc').trim(),
+    role: f.get('role').trim(), priority: f.get('priority'),
+    due: f.get('due'), done: !!f.get('done'),
+  };
+  if (!t.title || !t.role) return;
+  roleColor(t.role);                                  // registers a new role with a color
+  state.hidden.delete(t.role);                        // a task you just saved should be visible
+  if (editing) state.tasks[state.tasks.findIndex(x => x.id === editing.id)] = t; else state.tasks.push(t);
+  dlg.close(); persist();
+});
+
+document.getElementById('delBtn').addEventListener('click', () => {
+  if (!editing || !confirm('Delete this task?')) return;
+  state.tasks = state.tasks.filter(t => t.id !== editing.id);
+  dlg.close(); persist();
+});
+document.getElementById('cancelBtn').addEventListener('click', () => dlg.close());
+document.getElementById('newBtn').addEventListener('click', () => openDlg());
+
+document.body.addEventListener('click', e => {
+  const b = e.target.closest('[data-edit],[data-toggle],[data-role],[data-nav],[data-view],[data-span],#emptyNew');
+  if (!b) return;
+  if (b.id === 'emptyNew') return openDlg();
+  if (b.dataset.edit) return openDlg(state.tasks.find(t => t.id === b.dataset.edit));
+  if (b.dataset.toggle) {
+    const t = state.tasks.find(t => t.id === b.dataset.toggle); t.done = !t.done; return persist();
+  }
+  if (b.dataset.role) {
+    state.hidden.has(b.dataset.role) ? state.hidden.delete(b.dataset.role) : state.hidden.add(b.dataset.role);
+    return persist();
+  }
+  if (b.dataset.view) { state.view = b.dataset.view; return render() }
+  if (b.dataset.span) { state.span = b.dataset.span; return render() }
+  if (b.dataset.nav !== undefined) {
+    const n = +b.dataset.nav;
+    if (n === 0) state.anchor = new Date();
+    else if (state.view === 'calendar') state.anchor = new Date(state.anchor.getFullYear(), state.anchor.getMonth() + n, 1);
+    else state.anchor = addDays(state.anchor, n * (state.span === 'day' ? 1 : 7));
+    return render();
+  }
+});
+
+document.getElementById('showDone').addEventListener('change', e => { state.showDone = e.target.checked; render() });
+
+const themeBtn = document.getElementById('themeBtn');
+const applyTheme = t => { document.documentElement.classList.toggle('dark', t === 'dark'); save('td.theme', t) };
+applyTheme(load('td.theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+themeBtn.addEventListener('click', () => applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark'));
+
+state.tasks.forEach(t => roleColor(t.role));   // rebuild role palette after a reload
+render();
+
+/* ---------- self-check: open index.html?selftest ---------- */
+if (location.search.includes('selftest')) {
+  const out = [], ok = (c, m) => out.push((c ? 'PASS ' : 'FAIL ') + m);
+  const wed = new Date(2026, 10, 18, 13, 30);                      // Wed 18 Nov 2026
+  ok(startOfWeek(wed).getDate() === 15, 'startOfWeek -> Sun 15');
+  ok(addDays(wed, 3).getDate() === 21 && addDays(wed, 3).getHours() === 0, 'addDays normalizes to midnight');
+  ok(monthGrid(wed).length === 42 && monthGrid(wed)[0].getDay() === 0, 'monthGrid = 42 days starting Sunday');
+  ok(sameDay(wed, new Date(2026, 10, 18, 23, 59)) && !sameDay(wed, addDays(wed, 1)), 'sameDay ignores time');
+  const saved = [state.tasks, state.hidden, state.showDone];
+  state.tasks = [
+    { id: 'a', title: 'a', role: 'R1', priority: 'low', due: '2026-11-18T09:00', done: false },
+    { id: 'b', title: 'b', role: 'R1', priority: 'high', due: '2026-11-18T09:00', done: true },
+    { id: 'c', title: 'c', role: 'R2', priority: 'medium', due: '2026-11-17T08:00', done: false },
+  ];
+  state.hidden = new Set(); state.showDone = true;
+  ok(visible(state.tasks).map(t => t.id).join('') === 'cba', 'visible sorts by due then priority');
+  state.showDone = false;
+  ok(visible(state.tasks).map(t => t.id).join('') === 'ca', 'showDone=false hides completed');
+  state.showDone = true; state.hidden = new Set(['R1']);
+  ok(visible(state.tasks).map(t => t.id).join('') === 'c', 'hidden roles are filtered out');
+  state.hidden = new Set();
+  ok(onDay(visible(state.tasks), new Date(2026, 10, 18)).length === 2, 'onDay picks that calendar day');
+  [state.tasks, state.hidden, state.showDone] = saved;
+  console.log(out.join('\n'));
+  document.title = out.some(l => l.startsWith('FAIL')) ? 'SELFTEST FAIL' : 'SELFTEST PASS';
+  render();
+}
+</script>
+</body>
+</html>
