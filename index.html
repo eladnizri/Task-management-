@@ -858,12 +858,12 @@ applyTheme(lsGet('td.theme', 'dark'));
 sb.auth.onAuthStateChange(async (event, session) => {
   S.user = session?.user || null;
   if (S.user) {
-    await loadData();
-    setupRealtime();
-    checkImport();
     $('authScreen').classList.add('hidden');
     $('appRoot').classList.remove('hidden');
     navTo('tasks');
+    try { await loadData(); } catch(e) { console.warn('loadData', e); }
+    setupRealtime();
+    checkImport();
   } else {
     $('authScreen').classList.remove('hidden');
     $('appRoot').classList.add('hidden');
