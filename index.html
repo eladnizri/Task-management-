@@ -25,13 +25,13 @@
   textarea.input { border-radius:1.25rem }
   .input option { color:#151515 }
   .label { display:block; font-size:.85rem; font-weight:600; margin-bottom:.4rem }
-  .btn-primary { border-radius:999px; background:var(--ink); color:#fff; padding:.7rem 1.4rem; font-size:.9rem; font-weight:600; transition:opacity .15s }
+  .btn-primary { border-radius:999px; background:var(--ink); color:#fff; padding:.7rem 1.4rem; font-size:.9rem; font-weight:600; transition:opacity .2s,transform .15s }
   .dark .btn-primary { background:var(--accent); color:#151515 }
-  .btn-primary:hover { opacity:.9 } .btn-primary:disabled { opacity:.6 }
-  .btn-ghost { border-radius:999px; padding:.6rem 1rem; font-size:.9rem; color:var(--muted) }
+  .btn-primary:hover { opacity:.9 } .btn-primary:active { transform:scale(.97) } .btn-primary:disabled { opacity:.6 }
+  .btn-ghost { border-radius:999px; padding:.6rem 1rem; font-size:.9rem; color:var(--muted); transition:background .18s }
   .btn-ghost:hover { background:var(--surface2) }
-  .card { border-radius:1.75rem; background:var(--surface) }
-  .pill { border-radius:999px; padding:.5rem 1rem; font-size:.8rem; font-weight:500; background:var(--surface2); color:var(--pill-muted); white-space:nowrap; line-height:1.15; transition:background .15s }
+  .card { border-radius:1.75rem; background:var(--surface); transition:box-shadow .2s }
+  .pill { border-radius:999px; padding:.5rem 1rem; font-size:.8rem; font-weight:500; background:var(--surface2); color:var(--pill-muted); white-space:nowrap; line-height:1.15; transition:background .2s,color .2s }
   .pill.on { background:var(--accent); color:#151515; font-weight:700 }
   .sheet { background:var(--coral); color:#151515 }
   .sheet .input { border-color:rgb(0 0 0 / .28); background:rgb(255 255 255 / .06) }
@@ -41,10 +41,11 @@
   .sheet .btn-ghost { color:rgb(0 0 0 / .65) } .sheet .btn-ghost:hover { background:rgb(0 0 0 / .08) }
   .no-sb { scrollbar-width:none } .no-sb::-webkit-scrollbar { display:none }
   dialog { color:var(--text) }
-  dialog::backdrop { background: rgb(0 0 0 / .6) }
-  dialog[open] { animation: pop .15s ease both }
-  @keyframes pop { from { opacity:0; transform:translateY(8px) scale(.98) } to { opacity:1; transform:none } }
-  @media (prefers-reduced-motion: reduce) { dialog[open] { animation: none } }
+  dialog::backdrop { background: rgb(0 0 0 / .55); animation: fade-bd .22s ease both }
+  @keyframes fade-bd { from { opacity:0 } to { opacity:1 } }
+  dialog[open] { animation: slide-up .24s cubic-bezier(.32,1.1,.64,1) both }
+  @keyframes slide-up { from { opacity:0; transform:translateY(16px) scale(.97) } to { opacity:1; transform:none } }
+  @media (prefers-reduced-motion: reduce) { dialog[open], dialog::backdrop { animation: none } }
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px) }
   .safe-top { padding-top: env(safe-area-inset-top, 0px) }
   #_toast { position:fixed; bottom:5.5rem; left:50%; transform:translateX(-50%); background:#171717; color:#fff; border-radius:.75rem; padding:.5rem 1.25rem; font-size:.875rem; z-index:200; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; max-width:calc(100vw - 2rem); text-align:center; }
@@ -111,19 +112,19 @@
 </div>
 
 <!-- TASK DIALOG -->
-<dialog id="taskDlg" class="sheet w-[min(30rem,96vw)] rounded-[2rem] p-0 shadow-2xl" aria-labelledby="taskDlgTitle">
-  <div class="p-6">
-    <div class="flex items-center justify-between mb-5">
-      <h2 id="taskDlgTitle" class="text-2xl font-bold">היי, צור משימה חדשה</h2>
+<dialog id="taskDlg" class="sheet w-[min(28rem,94vw)] rounded-[1.5rem] p-0 shadow-2xl" aria-labelledby="taskDlgTitle">
+  <div class="p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 id="taskDlgTitle" class="text-xl font-bold">היי, צור משימה חדשה</h2>
       <button onclick="$('taskDlg').close()" aria-label="סגור"
-        class="grid place-items-center h-11 w-11 shrink-0 rounded-full bg-[#151515] text-white text-xl">&times;</button>
+        class="grid place-items-center h-9 w-9 shrink-0 rounded-full bg-[#151515] text-white text-lg">&times;</button>
     </div>
-    <form id="taskForm" onsubmit="handleSaveTask(event)" class="space-y-4">
+    <form id="taskForm" onsubmit="handleSaveTask(event)" class="space-y-3">
       <div>
         <label class="label">כותרת *</label>
         <input name="title" required maxlength="120" placeholder="על מה המשימה?" class="input w-full">
       </div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-2 gap-2">
         <div>
           <label class="label">תפקיד</label>
           <select name="role" id="roleSelect" class="input w-full"></select>
@@ -168,7 +169,7 @@
         <label class="label">תיאור</label>
         <textarea name="desc" rows="2" maxlength="600" class="input w-full resize-none"></textarea>
       </div>
-      <button type="submit" id="taskSaveBtn" class="btn-primary w-full py-4 text-base">שמור משימה</button>
+      <button type="submit" id="taskSaveBtn" class="btn-primary w-full py-3 text-sm">שמור משימה</button>
       <button type="button" id="taskDelBtn" class="hidden w-full rounded-full py-2 text-sm font-semibold text-[#151515]/70 hover:bg-black/10" onclick="handleDeleteTask()">מחק</button>
     </form>
   </div>
@@ -443,11 +444,16 @@ function navTo(page) {
   S.page = page;
   document.querySelectorAll('.nav-b').forEach(b => {
     const on = b.dataset.nav === page;
-    b.className = `nav-b h-14 w-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition ${on ? 'bg-[#f5cf6b] text-[#151515]' : 'bg-[#2a2a2d] text-white hover:bg-[#38383b]'}`;
+    b.className = `nav-b h-14 w-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition-all duration-200 ${on ? 'bg-[#f5cf6b] text-[#151515] scale-105' : 'bg-[#2a2a2d] text-white hover:bg-[#38383b]'}`;
     b.setAttribute('aria-current', on ? 'page' : 'false');
   });
-  window.scrollTo(0, 0);
+  const pc = $('pageContent');
+  if (pc) { pc.style.opacity='0'; pc.style.transform='translateY(6px)'; }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   render();
+  requestAnimationFrame(() => {
+    if (pc) { pc.style.transition='opacity .2s,transform .22s'; pc.style.opacity='1'; pc.style.transform='none'; }
+  });
 }
 
 // ── TASK CARD ──
