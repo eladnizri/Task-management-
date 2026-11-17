@@ -301,6 +301,7 @@ async function handleAuth(e) {
     const name = f.get('displayName')?.trim() || email.split('@')[0];
     let signUpData;
     ({ data: signUpData, error: err } = await sb.auth.signUp({ email, password: pass, options: { data: { display_name: name } } }));
+    console.log('[signup]', { err, session: !!signUpData?.session, user: signUpData?.user?.email });
     if (!err) {
       if (signUpData?.session) {
         // auto-confirm on — onAuthStateChange will redirect automatically
