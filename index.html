@@ -59,10 +59,6 @@
       <p class="muted mt-2">כל התפקידים במקום אחד</p>
     </div>
     <div class="card p-6">
-      <div class="flex rounded-full surface2 p-1 mb-5">
-        <button id="tabLogin" onclick="setAuthMode('login')" class="flex-1 rounded-lg py-2 text-sm font-medium transition">כניסה</button>
-        <button id="tabRegister" onclick="setAuthMode('register')" class="flex-1 rounded-lg py-2 text-sm font-medium transition">הרשמה</button>
-      </div>
       <form id="authForm" onsubmit="handleAuth(event)" class="space-y-3">
         <div>
           <label class="label">שם משתמש</label>
@@ -81,6 +77,7 @@
         <div id="authError" class="hidden text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg p-2"></div>
         <div id="authInfo" class="hidden text-xs text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/40 rounded-lg p-2"></div>
         <button type="submit" id="authBtn" class="btn-primary w-full py-2.5">כניסה</button>
+        <p class="text-center text-xs muted">משתמש חדש? פשוט בחר שם וסיסמה</p>
       </form>
     </div>
   </div>
@@ -263,73 +260,62 @@ function toast(msg, type='ok', undoCb=null) {
   el._t = setTimeout(() => el.classList.remove('show'), 3200);
 }
 
-function sbErr(msg) {
-  if (!msg) return 'שגיאה. נסה שוב.';
-  if (msg.includes('Invalid login credentials')) return 'שם משתמש או סיסמה שגויים';
-  if (msg.includes('already registered') || msg.includes('already been registered')) return 'שם משתמש תפוס — בחר אחר';
-  if (msg.includes('Email not confirmed')) return 'האימייל טרם אושר — בדוק את תיבת הדואר';
-  if (msg.includes('Password should be') || msg.includes('weak_password')) return 'הסיסמה חייבת להכיל לפחות 6 תווים';
-  if (msg.includes('rate limit') || msg.includes('too many')) return 'נסיונות רבים מדי — נסה שוב עוד דקה';
-  return 'שגיאה. נסה שוב.';
-}
-
 // ── AUTH ──
-function setAuthMode(mode) {
-  const login = mode === 'login';
-  const on = 'flex-1 rounded-full py-2 text-sm font-bold bg-[#f5cf6b] text-[#151515]';
-  const off = 'flex-1 rounded-full py-2 text-sm font-medium muted';
-  $('tabLogin').className = login ? on : off;
-  $('tabRegister').className = login ? off : on;
-  $('authBtn').textContent = login ? 'כניסה' : 'הרשמה';
-  $('authError').classList.add('hidden');
-  $('authInfo').classList.add('hidden');
-  $('pwdInput').autocomplete = login ? 'current-password' : 'new-password';
-  S.authMode = mode;
-}
-
 function togglePwd() {
   const inp = $('pwdInput'), eye = $('pwdEye');
   if (inp.type === 'password') { inp.type = 'text'; eye.textContent = '🙈'; }
   else { inp.type = 'password'; eye.textContent = '👁'; }
 }
 
+function showAuthError(msg) { const e = $('authError'); e.textContent = msg; e.classList.remove('hidden'); $('authInfo').classList.add('hidden'); }
+function showAuthInfo(msg)  { const e = $('authInfo');  e.textContent = msg; e.classList.remove('hidden'); $('authError').classList.add('hidden'); }
+
 async function handleAuth(e) {
   e.preventDefault();
   const f = new FormData(e.target);
-  const username = f.get('username')?.trim().toLowerCase().replace(/\s+/g, '_'), pass = f.get('password');
+  const username = f.get('username')?.trim(), pass = f.get('password');
   if (!username || !pass) return;
-  const email = username + '@tsk.app';
-  $('authBtn').disabled = true; $('authBtn').textContent = '...';
+  const email = username.toLowerCase().replace(/\s+/g, '_') + '@tsk.app';
+  const btn = $('authBtn');
+  btn.disabled = true; btn.textContent = '...';
   $('authError').classList.add('hidden');
+  $('authInfo').classList.add('hidden');
   try {
-    let err;
-    if (S.authMode === 'login') {
-      ({ error: err } = await sb.auth.signInWithPassword({ email, password: pass }));
-      if (err) showAuthError('שם משתמש או סיסמה שגויים');
-    } else {
-      const res = await fetch(SB_URL + '/functions/v1/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY },
-        body: JSON.stringify({ username, password: pass }),
-      });
-      const json = await res.json();
-      if (json.error) { showAuthError(json.error); $('authBtn').disabled = false; return; }
-      // user created & confirmed — now sign in
-      const { error: loginErr } = await sb.auth.signInWithPassword({ email, password: pass });
-      if (!loginErr) { showAuthInfo('✅ נרשמת בהצלחה! מתחבר...'); return; }
-      showAuthError('נרשמת — נסה להתחבר'); setAuthMode('login');
+    // 1. Try to sign in
+    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (!error) return; // onAuthStateChange handles the rest
+
+    // 2. Sign-in failed — try creating user via edge function
+    const res = await fetch(SB_URL + '/functions/v1/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY },
+      body: JSON.stringify({ username: username.trim(), password: pass }),
+    });
+    const json = await res.json();
+
+    if (json.exists) {
+      // User exists but password was wrong
+      showAuthError('סיסמה שגויה');
+      btn.disabled = false; btn.textContent = 'כניסה'; return;
     }
-    $('authBtn').disabled = false;
-    setAuthMode(S.authMode);
+    if (json.error) {
+      showAuthError(json.error);
+      btn.disabled = false; btn.textContent = 'כניסה'; return;
+    }
+
+    // 3. User just created — sign in
+    const { error: err2 } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (err2) {
+      showAuthError('שגיאה: ' + err2.message);
+      btn.disabled = false; btn.textContent = 'כניסה'; return;
+    }
+    // onAuthStateChange handles redirect
   } catch(ex) {
-    $('authBtn').disabled = false;
-    setAuthMode(S.authMode);
-    showAuthError('שגיאה: ' + (ex?.message || ex));
+    showAuthError('שגיאת רשת — בדוק חיבור ונסה שוב');
+    btn.disabled = false; btn.textContent = 'כניסה';
   }
 }
 
-function showAuthError(msg) { const e = $('authError'); e.textContent = msg; e.classList.remove('hidden'); $('authInfo').classList.add('hidden'); }
-function showAuthInfo(msg)  { const e = $('authInfo');  e.textContent = msg; e.classList.remove('hidden'); $('authError').classList.add('hidden'); }
 async function signOut() { await sb.auth.signOut(); location.reload(); }
 
 
@@ -863,7 +849,6 @@ function setupRealtime() {
 
 // ── INIT ──
 applyTheme(lsGet('td.theme', 'dark'));
-setAuthMode('login');
 
 sb.auth.onAuthStateChange(async (event, session) => {
   S.user = session?.user || null;
