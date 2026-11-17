@@ -229,6 +229,7 @@ const S = {
   page: 'tasks', calAnchor: new Date(),
   roleFilter: null, showDone: false,
   editTask: null, editRole: null, pendingImport: null,
+  loading: false,
 };
 
 const $ = id => document.getElementById(id);
@@ -329,10 +330,11 @@ async function signOut() { await sb.auth.signOut(); location.reload(); }
 async function loadData() {
   if (!S.user) return;
   const [{ data: tasks }, { data: roles }] = await Promise.all([
-    sb.from('tasks').select('*').order('due'),
-    sb.from('task_roles').select('*').order('name'),
+    sb.from('tasks').select('id,title,description,role_id,due,priority,done,tags,recurring,created_at').order('due'),
+    sb.from('task_roles').select('id,name,color,user_id').order('name'),
   ]);
   S.tasks = tasks || []; S.roles = roles || [];
+  S.loading = false;
   render();
 }
 
@@ -544,6 +546,15 @@ function renderTasks() {
       <span class="h-2.5 w-2.5 rounded-full" style="background:${r.color}"></span>${esc(r.name)}</button>`).join('')}
   </div>` : '';
 
+  if (S.loading) {
+    $('pageContent').innerHTML = `<div class="space-y-3">
+      ${Array(3).fill(`<div class="card p-4 space-y-2 animate-pulse">
+        <div class="h-4 rounded bg-[#2a2a2d] w-3/4"></div>
+        <div class="h-3 rounded bg-[#2a2a2d] w-1/2"></div>
+      </div>`).join('')}
+    </div>`;
+    return;
+  }
   if (!S.tasks.length) {
     $('pageContent').innerHTML = `<div class="card px-6 py-14 text-center">
       <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-[#cfe08f] text-3xl">📋</div>
@@ -861,8 +872,9 @@ sb.auth.onAuthStateChange(async (event, session) => {
   if (S.user) {
     $('authScreen').classList.add('hidden');
     $('appRoot').classList.remove('hidden');
+    S.loading = true;
     navTo('tasks');
-    try { await loadData(); } catch(e) { console.warn('loadData', e); }
+    try { await loadData(); } catch(e) { S.loading = false; render(); console.warn('loadData', e); }
     setupRealtime();
     checkImport();
   } else {
