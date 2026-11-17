@@ -4,375 +4,766 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>לוח תפקידים</title>
-<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com/3.4.16"></script>
 <script>tailwind.config = { darkMode: 'class' }</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/dist/umd/supabase.js"></script>
 <style>
   body { font-family: 'Heebo', 'Arial Hebrew', sans-serif }
-  [data-view-panel] { animation: fade .18s ease both }
-  @keyframes fade { from { opacity: 0; transform: translateY(2px) } to { opacity: 1; transform: none } }
-  .dark .role-c { filter: brightness(1.4) }   /* role hues read too dim on near-black */
-  dialog::backdrop { background: rgb(0 0 0 / .45) }
-  dialog[open] { animation: pop .16s ease both }
-  @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.99) } to { opacity: 1; transform: none } }
+  .input { @apply rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:focus:border-neutral-500 dark:text-neutral-100; }
+  .label { @apply block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1; }
+  .btn-primary { @apply rounded-xl bg-neutral-900 dark:bg-white px-4 py-2 text-sm font-medium text-white dark:text-neutral-900 hover:opacity-90 transition; }
+  .btn-ghost { @apply rounded-xl px-3 py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition; }
+  .card { @apply rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900; }
+  dialog::backdrop { background: rgb(0 0 0 / .5) }
+  dialog[open] { animation: pop .15s ease both }
+  @keyframes pop { from { opacity:0; transform:translateY(8px) scale(.98) } to { opacity:1; transform:none } }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px) }
 </style>
 </head>
-<body class="h-full bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 antialiased">
+<body class="h-full bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 antialiased">
 
-<div class="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-
-  <header class="flex flex-wrap items-center gap-3">
-    <h1 class="text-lg font-semibold tracking-tight">לוח תפקידים</h1>
-    <span id="summary" class="text-sm text-neutral-500 dark:text-neutral-400"></span>
-    <div class="me-auto flex items-center gap-2">
-      <button id="themeBtn" class="rounded-lg border border-neutral-200 px-2.5 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-900" aria-label="החלף מצב תצוגה">
-        <span class="dark:hidden">כהה</span><span class="hidden dark:inline">בהיר</span>
-      </button>
-      <button id="newBtn" class="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200">משימה חדשה</button>
+<!-- ═══════════════ AUTH ═══════════════ -->
+<div id="authScreen" class="min-h-full flex flex-col items-center justify-center p-6 bg-neutral-50 dark:bg-neutral-950">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-8">
+      <div class="text-4xl mb-3">📋</div>
+      <h1 class="text-2xl font-bold">לוח תפקידים</h1>
+      <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">ניהול משימות לכל תפקידיך</p>
     </div>
-  </header>
-
-  <!-- role filters -->
-  <div class="mt-5 flex flex-wrap items-center gap-2" id="roleFilters" role="group" aria-label="סינון לפי תפקיד"></div>
-
-  <!-- view switch -->
-  <div class="mt-4 flex flex-wrap items-center gap-3 border-b border-neutral-200 pb-3 dark:border-neutral-800">
-    <div class="flex rounded-lg border border-neutral-200 p-0.5 dark:border-neutral-800" id="viewTabs" role="tablist">
-      <button data-view="list" role="tab" class="rounded-md px-3 py-1.5 text-sm">רשימה</button>
-      <button data-view="schedule" role="tab" class="rounded-md px-3 py-1.5 text-sm">לוח זמנים</button>
-      <button data-view="calendar" role="tab" class="rounded-md px-3 py-1.5 text-sm">לוח שנה</button>
+    <div class="card p-6 shadow-sm">
+      <div class="flex rounded-xl border border-neutral-200 dark:border-neutral-700 p-1 mb-5">
+        <button id="tabLogin" onclick="setAuthMode('login')" class="flex-1 rounded-lg py-2 text-sm font-medium transition">כניסה</button>
+        <button id="tabRegister" onclick="setAuthMode('register')" class="flex-1 rounded-lg py-2 text-sm font-medium transition">הרשמה</button>
+      </div>
+      <form id="authForm" onsubmit="handleAuth(event)" class="space-y-3">
+        <div id="nameField" class="hidden">
+          <label class="label">שם לתצוגה</label>
+          <input name="displayName" placeholder="השם שלך" class="input w-full">
+        </div>
+        <div>
+          <label class="label">אימייל</label>
+          <input name="email" type="email" required placeholder="you@example.com" class="input w-full">
+        </div>
+        <div>
+          <label class="label">סיסמה</label>
+          <input name="password" type="password" required placeholder="לפחות 6 תווים" minlength="6" class="input w-full">
+        </div>
+        <div id="authError" class="hidden text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg p-2"></div>
+        <button type="submit" id="authBtn" class="btn-primary w-full py-2.5">כניסה</button>
+      </form>
     </div>
-    <div id="spanTabs" class="hidden rounded-lg border border-neutral-200 p-0.5 dark:border-neutral-800">
-      <button data-span="day" class="rounded-md px-3 py-1.5 text-sm">יום</button>
-      <button data-span="week" class="rounded-md px-3 py-1.5 text-sm">שבוע</button>
-    </div>
-    <div id="nav" class="hidden items-center gap-1">
-      <button data-nav="-1" class="rounded-md border border-neutral-200 px-2 py-1 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-900" aria-label="הקודם">&rsaquo;</button>
-      <button data-nav="0" class="rounded-md border border-neutral-200 px-2 py-1 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-900">היום</button>
-      <button data-nav="1" class="rounded-md border border-neutral-200 px-2 py-1 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-900" aria-label="הבא">&lsaquo;</button>
-      <span id="navLabel" class="ms-2 text-sm font-medium"></span>
-    </div>
-    <label class="me-auto flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-      <input id="showDone" type="checkbox" class="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700" checked>
-      הצג שלמות
-    </label>
   </div>
-
-  <main id="panel" class="mt-5"></main>
 </div>
 
-<!-- task modal -->
-<dialog id="dlg" class="w-[min(32rem,92vw)] rounded-2xl bg-white p-0 text-neutral-900 shadow-xl dark:bg-neutral-900 dark:text-neutral-100">
-  <form id="form" class="p-5">
-    <h2 id="dlgTitle" class="text-base font-semibold">משימה חדשה</h2>
-    <div class="mt-4 space-y-3">
-      <label class="block">
-        <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">כותרת</span>
-        <input name="title" required maxlength="120" class="mt-1 w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500">
-      </label>
-      <label class="block">
-        <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">תיאור</span>
-        <textarea name="desc" rows="2" maxlength="600" class="mt-1 w-full resize-none rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500"></textarea>
-      </label>
-      <div class="grid gap-3 sm:grid-cols-2">
-        <label class="block">
-          <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">תפקיד</span>
-          <input name="role" required list="roleList" maxlength="40" placeholder="לדוגמה: עבודה ראשית" class="mt-1 w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500">
-          <datalist id="roleList"></datalist>
-        </label>
-        <label class="block">
-          <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">עדיפות</span>
-          <select name="priority" class="mt-1 w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500">
-            <option value="low">נמוכה</option><option value="medium" selected>בינונית</option><option value="high">גבוהה</option>
-          </select>
-        </label>
-      </div>
-      <div class="grid gap-3 sm:grid-cols-2">
-        <label class="block">
-          <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">תאריך ושעת יעד</span>
-          <input name="due" type="datetime-local" required class="mt-1 w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500">
-        </label>
-        <label class="block">
-          <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400">סטטוס</span>
-          <select name="done" class="mt-1 w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:focus:border-neutral-500">
-            <option value="">ממתין</option><option value="1">הושלם</option>
-          </select>
-        </label>
-      </div>
+<!-- ═══════════════ APP ═══════════════ -->
+<div id="appRoot" class="hidden h-full flex flex-col md:flex-row">
+
+  <!-- Desktop sidebar (RIGHT in RTL) -->
+  <aside class="hidden md:flex flex-col w-56 shrink-0 border-s border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 h-full">
+    <div class="p-5 border-b border-neutral-200 dark:border-neutral-800">
+      <div class="text-lg font-bold">📋 לוח תפקידים</div>
+      <div id="sideUser" class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 truncate"></div>
     </div>
-    <div class="mt-5 flex items-center gap-2">
-      <button id="delBtn" type="button" class="hidden rounded-lg px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">מחק</button>
-      <button type="button" id="cancelBtn" class="me-auto rounded-lg px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">ביטול</button>
-      <button type="submit" class="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200">שמור</button>
+    <nav class="flex-1 p-3 space-y-1">
+      <button data-nav="tasks"    class="nav-s w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-right">📋 משימות</button>
+      <button data-nav="calendar" class="nav-s w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-right">📅 לוח שנה</button>
+      <button data-nav="account"  class="nav-s w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-right">👤 חשבון</button>
+    </nav>
+    <div class="p-3 border-t border-neutral-200 dark:border-neutral-800">
+      <button onclick="signOut()" class="w-full text-start px-3 py-2 text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition">↩ התנתקות</button>
     </div>
-  </form>
+  </aside>
+
+  <!-- Main area -->
+  <div class="flex-1 flex flex-col min-h-0 min-w-0">
+    <div id="pageHeader" class="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center gap-3 shrink-0"></div>
+    <div id="pageContent" class="flex-1 overflow-y-auto px-4 py-4 pb-28 md:pb-6"></div>
+  </div>
+
+  <!-- Mobile bottom nav -->
+  <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex safe-bottom z-20">
+    <button data-nav="tasks"    class="nav-b flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs">📋<span>משימות</span></button>
+    <button data-nav="calendar" class="nav-b flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs">📅<span>לוח שנה</span></button>
+    <button data-nav="account"  class="nav-b flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs">👤<span>חשבון</span></button>
+  </nav>
+
+  <!-- FAB -->
+  <button id="fab" onclick="openTaskDlg(null)"
+    class="md:hidden fixed bottom-[4.5rem] start-4 z-30 h-14 w-14 rounded-full bg-neutral-900 dark:bg-white shadow-xl flex items-center justify-center text-2xl text-white dark:text-neutral-900 active:scale-95 transition">
+    +
+  </button>
+</div>
+
+<!-- ═══════════════ TASK DIALOG ═══════════════ -->
+<dialog id="taskDlg" class="w-[min(28rem,96vw)] card p-0 shadow-2xl">
+  <div class="p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 id="taskDlgTitle" class="font-semibold">משימה חדשה</h2>
+      <button onclick="$('taskDlg').close()" class="text-neutral-400 hover:text-neutral-600 text-xl leading-none">&times;</button>
+    </div>
+    <form id="taskForm" onsubmit="handleSaveTask(event)" class="space-y-3">
+      <div>
+        <label class="label">כותרת *</label>
+        <input name="title" required maxlength="120" placeholder="על מה המשימה?" class="input w-full">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="label">תפקיד</label>
+          <select name="role" id="roleSelect" class="input w-full"></select>
+        </div>
+        <div>
+          <label class="label">עדיפות</label>
+          <select name="priority" class="input w-full">
+            <option value="low">🟢 נמוכה</option>
+            <option value="medium" selected>🟡 בינונית</option>
+            <option value="high">🔴 גבוהה</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="label">תאריך ושעה *</label>
+        <input name="due" type="datetime-local" required class="input w-full">
+      </div>
+      <div>
+        <label class="label">חזרה</label>
+        <select name="recurring" id="recurSelect" class="input w-full" onchange="onRecurChange(this.value)">
+          <option value="">ללא חזרה</option>
+          <option value="daily">יומי</option>
+          <option value="weekly">שבועי (אותו יום)</option>
+          <option value="monthly">חודשי (אותו תאריך)</option>
+          <option value="custom">ימים ספציפיים...</option>
+        </select>
+        <div id="customDays" class="hidden mt-2 flex flex-wrap gap-3">
+          <label class="flex items-center gap-1 text-xs"><input type="checkbox" name="rd0" value="0"> ראשון</label>
+          <label class="flex items-center gap-1 text-xs"><input type="checkbox" name="rd1" value="1"> שני</label>
+          <label class="flex items-center gap-1 text-xs"><input type="checkbox" name="rd2" value="2"> שלישי</label>
+          <label class="flex items-center gap-1 text-xs"><input type="checkbox" name="rd3" value="3"> רביעי</label>
+          <label class="flex items-center gap-1 text-xs"><input type="checkbox" name="rd4" value="4"> חמישי</label>
+          <label class="flex items-center gap-1 text-xs"><input type="checkbox" name="rd5" value="5"> שישי</label>
+          <label class="flex items-center gap-1 text-xs"><input type="checkbox" name="rd6" value="6"> שבת</label>
+        </div>
+      </div>
+      <div>
+        <label class="label">תגיות (מופרדות בפסיק)</label>
+        <input name="tags" placeholder="לדוגמה: דחוף, לקוח, פגישה" class="input w-full">
+      </div>
+      <div>
+        <label class="label">תיאור</label>
+        <textarea name="desc" rows="2" maxlength="600" class="input w-full resize-none"></textarea>
+      </div>
+      <div class="flex items-center gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+        <button type="button" id="taskDelBtn" class="hidden text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg px-3 py-1.5 transition" onclick="handleDeleteTask()">מחק</button>
+        <div class="flex-1"></div>
+        <button type="button" class="btn-ghost" onclick="$('taskDlg').close()">ביטול</button>
+        <button type="submit" id="taskSaveBtn" class="btn-primary">שמור</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<!-- ═══════════════ ROLE DIALOG ═══════════════ -->
+<dialog id="roleDlg" class="w-[min(22rem,96vw)] card p-0 shadow-2xl">
+  <div class="p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 id="roleDlgTitle" class="font-semibold">תפקיד חדש</h2>
+      <button onclick="$('roleDlg').close()" class="text-neutral-400 hover:text-neutral-600 text-xl leading-none">&times;</button>
+    </div>
+    <form id="roleForm" onsubmit="handleSaveRole(event)" class="space-y-3">
+      <div>
+        <label class="label">שם תפקיד</label>
+        <input name="name" required maxlength="40" placeholder="לדוגמה: עבודה ראשית" class="input w-full">
+      </div>
+      <div>
+        <label class="label">צבע</label>
+        <div class="flex flex-wrap gap-2 mb-2" id="colorSwatches"></div>
+        <input type="color" name="color" id="colorPicker" class="h-8 w-16 cursor-pointer rounded border border-neutral-200 dark:border-neutral-700">
+      </div>
+      <div class="flex items-center gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+        <button type="button" id="roleDelBtn" class="hidden text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg px-3 py-1.5" onclick="handleDeleteRole()">מחק</button>
+        <div class="flex-1"></div>
+        <button type="button" class="btn-ghost" onclick="$('roleDlg').close()">ביטול</button>
+        <button type="submit" class="btn-primary">שמור</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<!-- ═══════════════ IMPORT DIALOG ═══════════════ -->
+<dialog id="importDlg" class="w-[min(22rem,92vw)] card p-5 shadow-2xl">
+  <h3 class="font-semibold mb-2">🗂 יבוא נתונים מקומיים</h3>
+  <p id="importMsg" class="text-sm text-neutral-500 dark:text-neutral-400 mb-4"></p>
+  <div class="flex gap-2 justify-start">
+    <button class="btn-primary" onclick="confirmImport()">יבוא</button>
+    <button class="btn-ghost" onclick="skipImport()">דלג</button>
+  </div>
 </dialog>
 
 <script>
-const PALETTE = ['#2563eb','#db2777','#059669','#d97706','#7c3aed','#0891b2','#dc2626','#65a30d'];
-const PRIO = { high: 'גבוהה', medium: 'בינונית', low: 'נמוכה' };
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+const SB_URL = 'https://gytxwjlicawlfdehszil.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5dHh3amxpY2F3bGZkZWhzemlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1MTUyMzgsImV4cCI6MjEwMTA5MTIzOH0.LIBV2W0FTq4MHlyO2Z4iiPvBBGBP1btJaJ-qzUrig64';
+const PALETTE = ['#2563eb','#db2777','#059669','#d97706','#7c3aed','#0891b2','#dc2626','#65a30d','#0d9488','#9333ea'];
+
+// ══════════════════════════════════════════
+// SUPABASE + STATE
+// ══════════════════════════════════════════
+const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true } });
+
+const S = {
+  user: null, tasks: [], roles: [],
+  page: 'tasks', calAnchor: new Date(),
+  roleFilter: null, showDone: false,
+  editTask: null, editRole: null, pendingImport: null,
+};
+
+// ══════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const HE = 'he-IL';
-const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } };
-const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} };
+const lsGet = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} };
 
-const state = {
-  tasks: load('td.tasks', []),
-  roles: load('td.roles', []),            // [{name, color}]
-  view: 'list', span: 'week', anchor: new Date(),
-  hidden: new Set(load('td.hidden', [])), // hidden role names
-  showDone: true,
-};
-
-/* ---------- pure helpers (covered by ?selftest) ---------- */
 const dayStart = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const addDays = (d, n) => { const x = dayStart(d); x.setDate(x.getDate() + n); return x };
-const startOfWeek = d => addDays(d, -dayStart(d).getDay());          // weeks start Sunday
+const addDays  = (d, n) => { const x = dayStart(d); x.setDate(x.getDate()+n); return x; };
+const startOfWeek = d => addDays(d, -dayStart(d).getDay());
 const sameDay = (a, b) => dayStart(a).getTime() === dayStart(b).getTime();
-const monthGrid = d => {                                              // 42 days covering the month
-  const first = new Date(d.getFullYear(), d.getMonth(), 1);
-  return Array.from({ length: 42 }, (_, i) => addDays(startOfWeek(first), i));
-};
-const visible = tasks => tasks
-  .filter(t => !state.hidden.has(t.role) && (state.showDone || !t.done))
-  .sort((a, b) => a.due.localeCompare(b.due) || ordPrio(a) - ordPrio(b));
-const ordPrio = t => ['high','medium','low'].indexOf(t.priority);
-const onDay = (tasks, day) => tasks.filter(t => sameDay(new Date(t.due), day));
+const monthGrid = d => { const f = new Date(d.getFullYear(), d.getMonth(), 1); return Array.from({length:42}, (_,i) => addDays(startOfWeek(f), i)); };
+const fmtTime = iso => new Date(iso).toLocaleTimeString(HE, {hour:'numeric', minute:'2-digit'});
+const fmtDate = iso => new Date(iso).toLocaleDateString(HE, {month:'short', day:'numeric'});
 
-/* ---------- roles ---------- */
-function roleColor(name) {
-  let r = state.roles.find(r => r.name === name);
-  if (!r) { r = { name, color: PALETTE[state.roles.length % PALETTE.length] }; state.roles.push(r); save('td.roles', state.roles); }
-  return r.color;
-}
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const badge = role => `<span class="role-c inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
-  style="background:${roleColor(role)}1f;color:${roleColor(role)}">${esc(role)}</span>`;
-const fmtTime = iso => new Date(iso).toLocaleTimeString(HE, { hour: 'numeric', minute: '2-digit' });
-const fmtDate = iso => new Date(iso).toLocaleDateString(HE, { month: 'short', day: 'numeric' });
+const roleColor = id => S.roles.find(r=>r.id===id)?.color || '#94a3b8';
+const roleName  = id => S.roles.find(r=>r.id===id)?.name  || '';
 
-/* ---------- rendering ---------- */
-function render() {
-  // tabs
-  document.querySelectorAll('#viewTabs button').forEach(b => {
-    const on = b.dataset.view === state.view;
-    b.className = `rounded-md px-3 py-1.5 text-sm ${on ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900' : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'}`;
-    b.setAttribute('aria-selected', on);
-  });
-  document.querySelectorAll('#spanTabs button').forEach(b => {
-    const on = b.dataset.span === state.span;
-    b.className = `rounded-md px-3 py-1.5 text-sm ${on ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900' : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'}`;
-  });
-  document.getElementById('spanTabs').classList.toggle('hidden', state.view !== 'schedule');
-  const nav = document.getElementById('nav');
-  nav.classList.toggle('hidden', state.view === 'list');
-  nav.classList.toggle('flex', state.view !== 'list');
-
-  // role filter chips
-  document.getElementById('roleFilters').innerHTML = state.roles.length === 0
-    ? '<span class="text-sm text-neutral-400">אין תפקידים עדיין — הוסף משימה כדי ליצור אחד.</span>'
-    : state.roles.map(r => {
-        const on = !state.hidden.has(r.name);
-        const n = state.tasks.filter(t => t.role === r.name && !t.done).length;
-        return `<button data-role="${esc(r.name)}" aria-pressed="${on}" class="${on ? 'role-c ' : ''}flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition"
-          style="${on ? `border-color:${r.color};background:${r.color}14;color:${r.color}` : 'border-color:#d4d4d8;color:#a1a1aa'}">
-          <span class="h-2 w-2 rounded-full" style="background:${on ? r.color : '#a1a1aa'}"></span>${esc(r.name)}
-          <span class="text-xs opacity-70">${n}</span></button>`;
-      }).join('');
-
-  const open = state.tasks.filter(t => !t.done).length;
-  const late = state.tasks.filter(t => !t.done && new Date(t.due) < new Date()).length;
-  document.getElementById('summary').textContent =
-    `${open} פתוחות${late ? ` · ${late} באיחור` : ''} · ${state.tasks.length} סה"כ`;
-
-  const ts = visible(state.tasks);
-  const panel = document.getElementById('panel');
-  panel.setAttribute('data-view-panel', state.view);
-  panel.innerHTML = state.view === 'list' ? listView(ts) : state.view === 'schedule' ? scheduleView(ts) : calendarView(ts);
+// ══════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════
+function setAuthMode(mode) {
+  const login = mode === 'login';
+  const on = 'rounded-lg py-2 text-sm font-medium bg-neutral-900 text-white dark:bg-white dark:text-neutral-900';
+  const off = 'rounded-lg py-2 text-sm font-medium text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100';
+  $('tabLogin').className = login ? on : off;
+  $('tabRegister').className = login ? off : on;
+  $('nameField').classList.toggle('hidden', login);
+  $('authBtn').textContent = login ? 'כניסה' : 'הרשמה';
+  $('authError').classList.add('hidden');
+  S.authMode = mode;
 }
 
-function row(t) {
-  const overdue = !t.done && new Date(t.due) < new Date();
-  return `<li class="group flex items-start gap-3 px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900/60">
-    <input type="checkbox" data-toggle="${t.id}" ${t.done ? 'checked' : ''} aria-label="סמן כהושלם: ${esc(t.title)}"
-      class="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-600">
-    <button data-edit="${t.id}" class="min-w-0 flex-1 text-start">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="truncate text-sm font-medium ${t.done ? 'text-neutral-400 line-through dark:text-neutral-500' : ''}">${esc(t.title)}</span>
-        ${badge(t.role)}
-        ${t.priority === 'low' ? '' : `<span class="text-xs ${t.priority === 'high' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}">${PRIO[t.priority]}</span>`}
-      </div>
-      ${t.desc ? `<p class="mt-0.5 line-clamp-2 text-xs text-neutral-500 dark:text-neutral-400">${esc(t.desc)}</p>` : ''}
-    </button>
-    <span class="shrink-0 text-xs tabular-nums ${overdue ? 'font-medium text-red-600 dark:text-red-400' : 'text-neutral-500 dark:text-neutral-400'}">
-      ${fmtDate(t.due)}, ${fmtTime(t.due)}</span>
-  </li>`;
-}
-
-function listView(ts) {
-  if (!ts.length) return empty();
-  return `<ul class="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-neutral-200 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
-    ${ts.map(row).join('')}</ul>`;
-}
-
-function scheduleView(ts) {
-  const days = state.span === 'day' ? [dayStart(state.anchor)] : Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(state.anchor), i));
-  document.getElementById('navLabel').textContent = state.span === 'day'
-    ? state.anchor.toLocaleDateString(HE, { weekday: 'long', month: 'short', day: 'numeric' })
-    : `${days[0].toLocaleDateString(HE, { month: 'short', day: 'numeric' })} – ${days[6].toLocaleDateString(HE, { month: 'short', day: 'numeric' })}`;
-  return `<div class="grid gap-3 ${state.span === 'day' ? '' : 'sm:grid-cols-2 lg:grid-cols-7'}">
-    ${days.map(d => {
-      const list = onDay(ts, d);
-      const today = sameDay(d, new Date());
-      return `<section class="rounded-xl border p-3 ${today ? 'border-neutral-900 dark:border-neutral-300' : 'border-neutral-200 dark:border-neutral-800'} bg-white dark:bg-neutral-900">
-        <h3 class="flex items-baseline justify-between text-xs font-semibold uppercase tracking-wide ${today ? '' : 'text-neutral-500 dark:text-neutral-400'}">
-          ${d.toLocaleDateString(HE, { weekday: 'short' })}
-          <span class="text-sm font-normal tabular-nums">${d.getDate()}</span></h3>
-        <div class="mt-2 space-y-1.5">
-          ${list.length ? list.map(t => `
-            <div class="flex items-start gap-2 rounded-lg p-1.5 hover:bg-neutral-50 dark:hover:bg-neutral-800/60"
-              style="box-shadow:inset -3px 0 0 ${roleColor(t.role)}">
-              <input type="checkbox" data-toggle="${t.id}" ${t.done ? 'checked' : ''} aria-label="סמן כהושלם: ${esc(t.title)}"
-                class="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-neutral-300 dark:border-neutral-600">
-              <button data-edit="${t.id}" class="min-w-0 flex-1 text-start">
-                <div class="text-xs tabular-nums text-neutral-500 dark:text-neutral-400">${fmtTime(t.due)}</div>
-                <div class="truncate text-sm ${t.done ? 'text-neutral-400 line-through dark:text-neutral-500' : ''}">${esc(t.title)}</div>
-                <div class="mt-1">${badge(t.role)}</div>
-              </button></div>`).join('')
-            : '<p class="py-2 text-xs text-neutral-400">—</p>'}
-        </div></section>`;
-    }).join('')}</div>`;
-}
-
-function calendarView(ts) {
-  const grid = monthGrid(state.anchor), month = state.anchor.getMonth();
-  document.getElementById('navLabel').textContent = state.anchor.toLocaleDateString(HE, { month: 'long', year: 'numeric' });
-  const head = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-  return `<div class="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-    <div class="grid grid-cols-7 border-b border-neutral-200 text-center text-xs font-medium text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
-      ${head.map(h => `<div class="py-2">${h}</div>`).join('')}</div>
-    <div class="grid grid-cols-7">
-      ${grid.map((d, i) => {
-        const list = onDay(ts, d), today = sameDay(d, new Date());
-        return `<div class="min-h-[5.5rem] border-neutral-200 p-1.5 dark:border-neutral-800 ${i % 7 ? 'border-s' : ''} ${i >= 7 ? 'border-t' : ''} ${d.getMonth() === month ? '' : 'bg-neutral-50/60 dark:bg-neutral-950/40'}">
-          <div class="mb-1 text-xs tabular-nums ${today ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900' : 'text-neutral-400'}">${d.getDate()}</div>
-          ${list.slice(0, 3).map(t => `<button data-edit="${t.id}" class="role-c mb-0.5 block w-full truncate rounded px-1 py-0.5 text-start text-xs ${t.done ? 'line-through opacity-50' : ''}"
-            style="background:${roleColor(t.role)}1f;color:${roleColor(t.role)}" title="${esc(t.title)} · ${fmtTime(t.due)}">${fmtTime(t.due)} ${esc(t.title)}</button>`).join('')}
-          ${list.length > 3 ? `<span class="px-1 text-xs text-neutral-400">עוד +${list.length - 3}</span>` : ''}
-        </div>`;
-      }).join('')}</div></div>`;
-}
-
-const empty = () => `<div class="rounded-xl border border-dashed border-neutral-300 py-16 text-center dark:border-neutral-700">
-  <p class="text-sm text-neutral-500 dark:text-neutral-400">אין כלום כאן עדיין.</p>
-  <button id="emptyNew" class="mt-3 rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">הוסף משימה</button></div>`;
-
-/* ---------- mutations ---------- */
-function persist() { save('td.tasks', state.tasks); save('td.hidden', [...state.hidden]); render() }
-
-const dlg = document.getElementById('dlg'), form = document.getElementById('form');
-let editing = null;
-
-function openDlg(task) {
-  editing = task || null;
-  document.getElementById('dlgTitle').textContent = task ? 'ערוך משימה' : 'משימה חדשה';
-  document.getElementById('delBtn').classList.toggle('hidden', !task);
-  document.getElementById('roleList').innerHTML = state.roles.map(r => `<option value="${esc(r.name)}">`).join('');
-  form.reset();
-  if (task) {
-    form.title.value = task.title; form.desc.value = task.desc || ''; form.role.value = task.role;
-    form.priority.value = task.priority; form.due.value = task.due; form.done.value = task.done ? '1' : '';
-  } else {
-    const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1);
-    form.due.value = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
-    form.role.value = state.roles[0]?.name || '';
-  }
-  dlg.showModal(); form.title.focus();
-}
-
-form.addEventListener('submit', e => {
+async function handleAuth(e) {
   e.preventDefault();
-  const f = new FormData(form);
-  const t = {
-    id: editing?.id || crypto.randomUUID(),
-    title: f.get('title').trim(), desc: f.get('desc').trim(),
-    role: f.get('role').trim(), priority: f.get('priority'),
-    due: f.get('due'), done: !!f.get('done'),
-  };
-  if (!t.title || !t.role) return;
-  roleColor(t.role);                                  // registers a new role with a color
-  state.hidden.delete(t.role);                        // a task you just saved should be visible
-  if (editing) state.tasks[state.tasks.findIndex(x => x.id === editing.id)] = t; else state.tasks.push(t);
-  dlg.close(); persist();
-});
+  const f = new FormData(e.target);
+  const email = f.get('email').trim(), pass = f.get('password');
+  $('authBtn').disabled = true; $('authBtn').textContent = '...';
+  $('authError').classList.add('hidden');
 
-document.getElementById('delBtn').addEventListener('click', () => {
-  if (!editing || !confirm('למחוק את המשימה הזו?')) return;
-  state.tasks = state.tasks.filter(t => t.id !== editing.id);
-  dlg.close(); persist();
-});
-document.getElementById('cancelBtn').addEventListener('click', () => dlg.close());
-document.getElementById('newBtn').addEventListener('click', () => openDlg());
-
-document.body.addEventListener('click', e => {
-  const b = e.target.closest('[data-edit],[data-toggle],[data-role],[data-nav],[data-view],[data-span],#emptyNew');
-  if (!b) return;
-  if (b.id === 'emptyNew') return openDlg();
-  if (b.dataset.edit) return openDlg(state.tasks.find(t => t.id === b.dataset.edit));
-  if (b.dataset.toggle) {
-    const t = state.tasks.find(t => t.id === b.dataset.toggle); t.done = !t.done; return persist();
+  let err;
+  if (S.authMode === 'login') {
+    ({ error: err } = await sb.auth.signInWithPassword({ email, password: pass }));
+  } else {
+    const name = f.get('displayName')?.trim() || email.split('@')[0];
+    ({ error: err } = await sb.auth.signUp({ email, password: pass, options: { data: { display_name: name } } }));
+    if (!err) { showAuthError('✉️ נשלח מייל אימות — אשר את הכתובת ואז היכנס.'); $('authBtn').disabled = false; setAuthMode('login'); return; }
   }
-  if (b.dataset.role) {
-    state.hidden.has(b.dataset.role) ? state.hidden.delete(b.dataset.role) : state.hidden.add(b.dataset.role);
-    return persist();
-  }
-  if (b.dataset.view) { state.view = b.dataset.view; return render() }
-  if (b.dataset.span) { state.span = b.dataset.span; return render() }
-  if (b.dataset.nav !== undefined) {
-    const n = +b.dataset.nav;
-    if (n === 0) state.anchor = new Date();
-    else if (state.view === 'calendar') state.anchor = new Date(state.anchor.getFullYear(), state.anchor.getMonth() + n, 1);
-    else state.anchor = addDays(state.anchor, n * (state.span === 'day' ? 1 : 7));
-    return render();
-  }
-});
+  $('authBtn').disabled = false;
+  setAuthMode(S.authMode);
+  if (err) showAuthError(err.message === 'Invalid login credentials' ? 'אימייל או סיסמה שגויים' : err.message);
+}
 
-document.getElementById('showDone').addEventListener('change', e => { state.showDone = e.target.checked; render() });
+function showAuthError(msg) { const e = $('authError'); e.textContent = msg; e.classList.remove('hidden'); }
 
-const themeBtn = document.getElementById('themeBtn');
-const applyTheme = t => { document.documentElement.classList.toggle('dark', t === 'dark'); save('td.theme', t) };
-applyTheme(load('td.theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
-themeBtn.addEventListener('click', () => applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark'));
+async function signOut() { await sb.auth.signOut(); location.reload(); }
 
-state.tasks.forEach(t => roleColor(t.role));   // rebuild role palette after a reload
-render();
-
-/* ---------- self-check: open index.html?selftest ---------- */
-if (location.search.includes('selftest')) {
-  const out = [], ok = (c, m) => out.push((c ? 'PASS ' : 'FAIL ') + m);
-  const wed = new Date(2026, 10, 18, 13, 30);
-  ok(startOfWeek(wed).getDate() === 15, 'startOfWeek -> Sun 15');
-  ok(addDays(wed, 3).getDate() === 21 && addDays(wed, 3).getHours() === 0, 'addDays normalizes to midnight');
-  ok(monthGrid(wed).length === 42 && monthGrid(wed)[0].getDay() === 0, 'monthGrid = 42 days starting Sunday');
-  ok(sameDay(wed, new Date(2026, 10, 18, 23, 59)) && !sameDay(wed, addDays(wed, 1)), 'sameDay ignores time');
-  const saved = [state.tasks, state.hidden, state.showDone];
-  state.tasks = [
-    { id: 'a', title: 'a', role: 'R1', priority: 'low', due: '2026-11-18T09:00', done: false },
-    { id: 'b', title: 'b', role: 'R1', priority: 'high', due: '2026-11-18T09:00', done: true },
-    { id: 'c', title: 'c', role: 'R2', priority: 'medium', due: '2026-11-17T08:00', done: false },
-  ];
-  state.hidden = new Set(); state.showDone = true;
-  ok(visible(state.tasks).map(t => t.id).join('') === 'cba', 'visible sorts by due then priority');
-  state.showDone = false;
-  ok(visible(state.tasks).map(t => t.id).join('') === 'ca', 'showDone=false hides completed');
-  state.showDone = true; state.hidden = new Set(['R1']);
-  ok(visible(state.tasks).map(t => t.id).join('') === 'c', 'hidden roles are filtered out');
-  state.hidden = new Set();
-  ok(onDay(visible(state.tasks), new Date(2026, 10, 18)).length === 2, 'onDay picks that calendar day');
-  [state.tasks, state.hidden, state.showDone] = saved;
-  console.log(out.join('\n'));
-  document.title = out.some(l => l.startsWith('FAIL')) ? 'SELFTEST FAIL' : 'SELFTEST PASS';
+// ══════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════
+async function loadData() {
+  if (!S.user) return;
+  const [{ data: tasks }, { data: roles }] = await Promise.all([
+    sb.from('tasks').select('*').order('due'),
+    sb.from('task_roles').select('*').order('name'),
+  ]);
+  S.tasks = tasks || []; S.roles = roles || [];
   render();
 }
+
+async function upsertTask(data) {
+  const row = {
+    user_id: S.user.id,
+    title: data.title, description: data.description || '',
+    role_id: data.role_id || null,
+    due: data.due, priority: data.priority,
+    done: data.done || false,
+    tags: Array.isArray(data.tags) ? data.tags : [],
+    recurring: data.recurring || null,
+  };
+  if (data.id) await sb.from('tasks').update(row).eq('id', data.id);
+  else await sb.from('tasks').insert(row);
+  await loadData();
+}
+
+async function toggleTask(task) {
+  const done = !task.done;
+  await sb.from('tasks').update({ done, done_at: done ? new Date().toISOString() : null }).eq('id', task.id);
+  if (done && task.recurring) {
+    const next = nextRecurDate(new Date(task.due), task.recurring);
+    if (next) await sb.from('tasks').insert({ user_id:S.user.id, title:task.title, description:task.description, role_id:task.role_id, due:next.toISOString(), priority:task.priority, done:false, tags:task.tags, recurring:task.recurring });
+  }
+  await loadData();
+}
+
+function nextRecurDate(d, recurring) {
+  const r = new Date(d);
+  if (recurring === 'daily')   { r.setDate(r.getDate()+1); return r; }
+  if (recurring === 'weekly')  { r.setDate(r.getDate()+7); return r; }
+  if (recurring === 'monthly') { r.setMonth(r.getMonth()+1); return r; }
+  if (recurring?.startsWith('days:')) {
+    const days = recurring.slice(5).split(',').map(Number).sort((a,b)=>a-b);
+    const cur = r.getDay();
+    const nd = days.find(x=>x>cur) ?? days[0];
+    r.setDate(r.getDate() + (nd>cur ? nd-cur : 7-cur+nd));
+    return r;
+  }
+  return null;
+}
+
+async function deleteTask(id) { await sb.from('tasks').delete().eq('id', id); await loadData(); }
+
+async function upsertRole(name, color, id) {
+  const row = { user_id: S.user.id, name, color };
+  if (id) await sb.from('task_roles').update({ name, color }).eq('id', id);
+  else await sb.from('task_roles').insert(row);
+  await loadData();
+}
+
+async function deleteRole(id) {
+  await sb.from('task_roles').delete().eq('id', id);
+  await loadData();
+}
+
+// ══════════════════════════════════════════
+// LOCALSTORAGE IMPORT
+// ══════════════════════════════════════════
+function checkImport() {
+  try {
+    const lt = JSON.parse(localStorage.getItem('td.tasks') || 'null');
+    const lr = JSON.parse(localStorage.getItem('td.roles') || 'null');
+    if (!lt?.length && !lr?.length) return;
+    S.pendingImport = { tasks: lt||[], roles: lr||[] };
+    $('importMsg').textContent = `נמצאו ${lt?.length||0} משימות ו-${lr?.length||0} תפקידים שמורים מקומית. לייבא לחשבון?`;
+    $('importDlg').showModal();
+  } catch {}
+}
+
+async function confirmImport() {
+  $('importDlg').close();
+  const { tasks: lt, roles: lr } = S.pendingImport;
+  const map = {};
+  for (const r of lr) {
+    const { data } = await sb.from('task_roles').insert({ user_id:S.user.id, name:r.name, color:r.color }).select().single();
+    if (data) map[r.name] = data.id;
+  }
+  if (lt.length) await sb.from('tasks').insert(lt.map(t=>({
+    user_id:S.user.id, title:t.title, description:t.desc||'',
+    role_id: map[t.role]||null, due: new Date(t.due).toISOString(),
+    priority:t.priority||'medium', done:t.done||false, tags:[], recurring:null,
+  })));
+  localStorage.removeItem('td.tasks'); localStorage.removeItem('td.roles');
+  S.pendingImport = null;
+  await loadData();
+}
+
+function skipImport() {
+  $('importDlg').close();
+  localStorage.removeItem('td.tasks'); localStorage.removeItem('td.roles');
+}
+
+// ══════════════════════════════════════════
+// THEME
+// ══════════════════════════════════════════
+const applyTheme = t => { document.documentElement.classList.toggle('dark', t==='dark'); lsSet('td.theme', t); };
+function toggleTheme() {
+  applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark');
+  const cb = $('darkToggle'); if (cb) cb.checked = document.documentElement.classList.contains('dark');
+}
+
+// ══════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════
+function navTo(page) {
+  S.page = page;
+  document.querySelectorAll('.nav-s,.nav-b').forEach(b => {
+    const on = b.dataset.nav === page;
+    if (b.classList.contains('nav-s'))
+      b.className = `nav-s w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-right transition ${on ? 'bg-neutral-100 dark:bg-neutral-800 font-medium text-neutral-900 dark:text-neutral-100' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50'}`;
+    else
+      b.className = `nav-b flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs transition ${on ? 'text-neutral-900 dark:text-neutral-100 font-semibold' : 'text-neutral-500 dark:text-neutral-400'}`;
+  });
+  $('fab').classList.toggle('hidden', page !== 'tasks');
+  render();
+}
+
+// ══════════════════════════════════════════
+// TASK CARD
+// ══════════════════════════════════════════
+function taskCard(t, hideDate=false) {
+  const color = roleColor(t.role_id), name = roleName(t.role_id);
+  const overdue = !t.done && new Date(t.due) < dayStart(new Date());
+  const tags = Array.isArray(t.tags) ? t.tags.filter(Boolean) : [];
+  const recurIcon = t.recurring ? ' 🔁' : '';
+  return `<div class="flex items-start gap-3 rounded-xl border bg-white dark:bg-neutral-900 p-3 shadow-sm active:opacity-80 transition"
+    style="border-inline-start:3px solid ${color}">
+    <input type="checkbox" data-toggle="${t.id}" ${t.done?'checked':''}
+      class="mt-1 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-600 cursor-pointer"
+      onclick="event.stopPropagation()">
+    <button data-edit="${t.id}" class="min-w-0 flex-1 text-start">
+      <span class="text-sm font-medium ${t.done?'line-through text-neutral-400 dark:text-neutral-500':''}">${esc(t.title)}${recurIcon}</span>
+      <div class="mt-1 flex flex-wrap items-center gap-1.5">
+        ${name ? `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" style="background:${color}1f;color:${color}">${esc(name)}</span>` : ''}
+        ${t.priority==='high'&&!t.done ? `<span class="text-xs font-medium text-red-500">🔴 גבוהה</span>` : ''}
+        ${tags.map(g=>`<span class="rounded-full border border-neutral-200 dark:border-neutral-700 px-1.5 py-0.5 text-xs text-neutral-500 dark:text-neutral-400">${esc(g)}</span>`).join('')}
+        ${!hideDate ? `<span class="text-xs ${overdue?'text-red-500 font-medium':'text-neutral-400 dark:text-neutral-500'}">${overdue?'⏰ ':''}${fmtDate(t.due)}, ${fmtTime(t.due)}</span>` : `<span class="text-xs text-neutral-400">${fmtTime(t.due)}</span>`}
+      </div>
+    </button>
+  </div>`;
+}
+
+function section(icon, title, tasks, hideDate=false, empty=null) {
+  if (!tasks.length && empty===null) return '';
+  return `<section class="mb-5">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mb-2">${icon} ${title}</h2>
+    ${tasks.length
+      ? `<div class="space-y-2">${tasks.map(t=>taskCard(t,hideDate)).join('')}</div>`
+      : `<p class="text-sm text-neutral-400 dark:text-neutral-500 py-3 text-center">${empty}</p>`}
+  </section>`;
+}
+
+// ══════════════════════════════════════════
+// PAGES
+// ══════════════════════════════════════════
+function render() {
+  if (S.page === 'tasks')    renderTasks();
+  else if (S.page === 'calendar') renderCalendar();
+  else renderAccount();
+}
+
+function renderTasks() {
+  const now = new Date(), today = dayStart(now);
+  const tmrw = addDays(today,1), dayAfter = addDays(today,2), weekEnd = addDays(today,8);
+
+  const all = S.tasks.filter(t => !S.roleFilter || t.role_id === S.roleFilter);
+  const pend = all.filter(t=>!t.done), done = all.filter(t=>t.done);
+
+  const overdue    = pend.filter(t=>new Date(t.due)<today);
+  const todayT     = pend.filter(t=>{ const d=new Date(t.due); return d>=today&&d<tmrw; });
+  const tomorrowT  = pend.filter(t=>{ const d=new Date(t.due); return d>=tmrw&&d<dayAfter; });
+  const impWeek    = pend.filter(t=>{ const d=new Date(t.due); return t.priority==='high'&&d>=dayAfter&&d<weekEnd; });
+  const rest       = pend.filter(t=>{ const d=new Date(t.due); return d>=dayAfter&&!(t.priority==='high'&&d<weekEnd); });
+
+  const lateCount = overdue.length;
+
+  $('pageHeader').innerHTML = `
+    <div class="flex-1 min-w-0">
+      <h1 class="text-base font-semibold">משימות</h1>
+      <p class="text-xs text-neutral-500">${pend.length} פתוחות${lateCount?` · ${lateCount} באיחור`:''}</p>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      <button onclick="openTaskDlg(null)" class="hidden md:flex btn-primary items-center gap-1">+ משימה חדשה</button>
+      <button onclick="toggleTheme()" class="rounded-lg border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5 text-sm">
+        <span class="dark:hidden">🌙</span><span class="hidden dark:inline">☀️</span>
+      </button>
+    </div>`;
+
+  const chips = S.roles.length ? `<div class="flex flex-wrap gap-2 mb-4">
+    <button data-rf="" class="rounded-full border px-3 py-1 text-sm transition ${!S.roleFilter?'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900':'border-neutral-300 dark:border-neutral-700 text-neutral-500'}">הכל</button>
+    ${S.roles.map(r=>`<button data-rf="${r.id}" class="rounded-full border px-3 py-1 text-sm transition"
+      style="${S.roleFilter===r.id?`border-color:${r.color};background:${r.color}1f;color:${r.color}`:'border-color:#d4d4d8;color:#a1a1aa'}">${esc(r.name)}</button>`).join('')}
+  </div>` : '';
+
+  const doneHtml = S.showDone && done.length ? section('✅','הושלמו', done.slice(0,20)) : '';
+
+  $('pageContent').innerHTML = chips +
+    section('⏰','באיחור', overdue) +
+    section('📅','היום', todayT, true, '🎉 אין משימות להיום') +
+    section('🌅','מחר', tomorrowT) +
+    section('⭐','חשובות השבוע', impWeek) +
+    section('📂','עוד משימות', rest) +
+    (!pend.length&&!overdue.length ? `<div class="text-center py-16"><p class="text-5xl mb-3">🎉</p><p class="text-neutral-500">כל המשימות הושלמו!</p></div>` : '') +
+    (done.length ? `<button onclick="toggleShowDone()" class="text-sm text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 w-full text-center py-3 mt-2">
+      ${S.showDone?'🔼 הסתר':'🔽 הצג '+done.length+' שהושלמו'}</button>` : '') +
+    doneHtml;
+}
+
+function toggleShowDone() { S.showDone = !S.showDone; renderTasks(); }
+
+function renderCalendar() {
+  const grid = monthGrid(S.calAnchor), month = S.calAnchor.getMonth();
+  const lbl = S.calAnchor.toLocaleDateString(HE, {month:'long', year:'numeric'});
+  $('pageHeader').innerHTML = `
+    <h1 class="text-base font-semibold flex-1">${lbl}</h1>
+    <div class="flex items-center gap-1">
+      <button data-cal="-1" class="rounded-lg border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">&rsaquo;</button>
+      <button data-cal="0"  class="rounded-lg border border-neutral-200 dark:border-neutral-800 px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">היום</button>
+      <button data-cal="1"  class="rounded-lg border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">&lsaquo;</button>
+    </div>`;
+  const head = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  $('pageContent').innerHTML = `<div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+    <div class="grid grid-cols-7 border-b border-neutral-200 dark:border-neutral-800 text-center text-xs font-medium text-neutral-500 dark:text-neutral-400">
+      ${head.map(h=>`<div class="py-2">${h}</div>`).join('')}
+    </div>
+    <div class="grid grid-cols-7">
+      ${grid.map((d,i)=>{
+        const list = S.tasks.filter(t=>!t.done&&sameDay(new Date(t.due),d));
+        const isToday = sameDay(d,new Date());
+        return `<div class="min-h-[5rem] border-neutral-200 dark:border-neutral-800 p-1 ${i%7?'border-s':''} ${i>=7?'border-t':''} ${d.getMonth()===month?'':'bg-neutral-50/40 dark:bg-neutral-950/40'}">
+          <div class="text-xs tabular-nums mb-0.5 ${isToday?'inline-flex h-5 w-5 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-bold':'text-neutral-400'}">${d.getDate()}</div>
+          ${list.slice(0,3).map(t=>`<button data-edit="${t.id}" class="block w-full truncate rounded px-1 py-0.5 text-xs text-start mb-0.5 hover:opacity-80"
+            style="background:${roleColor(t.role_id)}1f;color:${roleColor(t.role_id)}">${fmtTime(t.due)} ${esc(t.title)}</button>`).join('')}
+          ${list.length>3?`<span class="text-xs text-neutral-400 px-1">+${list.length-3}</span>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function renderAccount() {
+  const user = S.user;
+  const dn = user?.user_metadata?.display_name || user?.email?.split('@')[0] || '';
+  $('pageHeader').innerHTML = `<h1 class="text-base font-semibold flex-1">חשבון</h1>
+    <button onclick="signOut()" class="btn-ghost text-sm">↩ התנתקות</button>`;
+
+  $('pageContent').innerHTML = `
+    <!-- Profile -->
+    <section class="card p-4 mb-4">
+      <h2 class="text-sm font-semibold mb-3">👤 פרופיל</h2>
+      <div class="space-y-1 text-sm text-neutral-600 dark:text-neutral-400">
+        <p>שם: <span class="text-neutral-900 dark:text-neutral-100 font-medium">${esc(dn)}</span></p>
+        <p>אימייל: <span class="text-neutral-900 dark:text-neutral-100">${esc(user?.email||'')}</span></p>
+      </div>
+    </section>
+
+    <!-- Roles -->
+    <section class="card p-4 mb-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold">🏷️ תפקידים</h2>
+        <button onclick="openRoleDlg(null)" class="text-xs font-medium text-neutral-900 dark:text-neutral-100 hover:underline">+ הוסף</button>
+      </div>
+      <div id="rolesList">
+        ${S.roles.length ? S.roles.map(r=>`
+          <div class="flex items-center gap-3 py-2.5 border-b border-neutral-100 dark:border-neutral-800 last:border-0">
+            <span class="h-4 w-4 rounded-full shrink-0" style="background:${r.color}"></span>
+            <span class="flex-1 text-sm">${esc(r.name)}</span>
+            <span class="text-xs text-neutral-400">${S.tasks.filter(t=>t.role_id===r.id&&!t.done).length} פתוחות</span>
+            <button data-er="${r.id}" class="text-xs btn-ghost py-1 px-2">ערוך</button>
+          </div>`).join('')
+          : '<p class="text-sm text-neutral-400 py-2 text-center">אין תפקידים עדיין.</p>'}
+      </div>
+    </section>
+
+    <!-- Daily email -->
+    <section class="card p-4 mb-4">
+      <h2 class="text-sm font-semibold mb-3">📧 דוח יומי במייל</h2>
+      <form id="emailForm" onsubmit="saveEmailSettings(event)" class="space-y-3">
+        <div>
+          <label class="label">שלח לאימייל</label>
+          <input name="email" type="email" value="${esc(user?.email||'')}" class="input w-full">
+        </div>
+        <div>
+          <label class="label">שעת שליחה</label>
+          <select name="hour" id="rHour" class="input w-full">
+            ${Array.from({length:24},(_,h)=>`<option value="${h}" ${h===7?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+          </select>
+        </div>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" name="enabled" id="rEnabled" checked class="h-4 w-4 rounded">
+          פעיל
+        </label>
+        <button type="submit" class="btn-primary">שמור הגדרות</button>
+      </form>
+    </section>
+
+    <!-- Appearance -->
+    <section class="card p-4 mb-4">
+      <h2 class="text-sm font-semibold mb-3">🎨 מראה</h2>
+      <label class="flex items-center justify-between cursor-pointer">
+        <span class="text-sm">מצב כהה</span>
+        <input type="checkbox" id="darkToggle" onchange="toggleTheme()" class="h-4 w-4 rounded" ${document.documentElement.classList.contains('dark')?'checked':''}>
+      </label>
+    </section>`;
+
+  loadEmailSettings();
+}
+
+async function loadEmailSettings() {
+  const { data } = await sb.from('email_report_settings').select('*').eq('user_id', S.user.id).maybeSingle();
+  if (!data) return;
+  const f = $('emailForm'); if (!f) return;
+  f.email.value = data.email;
+  $('rHour').value = data.send_hour;
+  $('rEnabled').checked = data.enabled;
+}
+
+async function saveEmailSettings(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  await sb.from('email_report_settings').upsert({
+    user_id: S.user.id,
+    email: f.get('email'), send_hour: parseInt(f.get('hour')),
+    enabled: !!f.get('enabled'),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    updated_at: new Date().toISOString(),
+  });
+  alert('✅ הגדרות נשמרו');
+}
+
+// ══════════════════════════════════════════
+// TASK MODAL
+// ══════════════════════════════════════════
+function openTaskDlg(task) {
+  S.editTask = task || null;
+  $('taskDlgTitle').textContent = task ? 'ערוך משימה' : 'משימה חדשה';
+  $('taskDelBtn').classList.toggle('hidden', !task);
+  $('roleSelect').innerHTML = `<option value="">ללא תפקיד</option>` +
+    S.roles.map(r=>`<option value="${r.id}" ${task?.role_id===r.id?'selected':''}>${esc(r.name)}</option>`).join('');
+  const f = $('taskForm'); f.reset();
+  $('customDays').classList.add('hidden');
+  if (task) {
+    f.title.value = task.title; f.desc.value = task.description || '';
+    f.due.value = task.due ? task.due.slice(0,16) : '';
+    f.priority.value = task.priority;
+    f.tags.value = Array.isArray(task.tags) ? task.tags.join(', ') : '';
+    if (task.recurring?.startsWith('days:')) {
+      $('recurSelect').value = 'custom'; $('customDays').classList.remove('hidden');
+      task.recurring.slice(5).split(',').forEach(d => {
+        const cb = f.querySelector(`[name=rd${d}]`); if (cb) cb.checked = true;
+      });
+    } else { $('recurSelect').value = task.recurring || ''; }
+  } else {
+    const d = new Date(); d.setMinutes(0,0,0); d.setHours(d.getHours()+1);
+    f.due.value = new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,16);
+  }
+  $('taskDlg').showModal(); f.title.focus();
+}
+
+function onRecurChange(v) { $('customDays').classList.toggle('hidden', v!=='custom'); }
+
+async function handleSaveTask(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  let recurring = f.get('recurring') || null;
+  if (recurring === 'custom') {
+    const days = [0,1,2,3,4,5,6].filter(i=>f.get(`rd${i}`));
+    recurring = days.length ? `days:${days.join(',')}` : null;
+  }
+  await upsertTask({
+    id: S.editTask?.id,
+    title: f.get('title').trim(), description: f.get('desc').trim(),
+    role_id: f.get('role') || null, due: f.get('due'),
+    priority: f.get('priority'), done: S.editTask?.done || false,
+    tags: (f.get('tags')||'').split(',').map(s=>s.trim()).filter(Boolean),
+    recurring,
+  });
+  $('taskDlg').close();
+}
+
+async function handleDeleteTask() {
+  if (!S.editTask || !confirm('למחוק משימה זו?')) return;
+  await deleteTask(S.editTask.id); $('taskDlg').close();
+}
+
+// ══════════════════════════════════════════
+// ROLE MODAL
+// ══════════════════════════════════════════
+function openRoleDlg(role) {
+  S.editRole = role || null;
+  $('roleDlgTitle').textContent = role ? 'ערוך תפקיד' : 'תפקיד חדש';
+  $('roleDelBtn').classList.toggle('hidden', !role);
+  const f = $('roleForm'); f.reset();
+  if (role) { f.name.value = role.name; $('colorPicker').value = role.color; }
+  else { $('colorPicker').value = PALETTE[S.roles.length % PALETTE.length]; }
+  // Color swatches
+  $('colorSwatches').innerHTML = PALETTE.map(c=>`<button type="button" data-swatch="${c}"
+    class="h-7 w-7 rounded-full border-2 transition hover:scale-110"
+    style="background:${c};border-color:${$('colorPicker').value===c?'#000':'transparent'}" onclick="pickSwatch('${c}')"></button>`).join('');
+  $('roleDlg').showModal(); f.name.focus();
+}
+
+function pickSwatch(c) {
+  $('colorPicker').value = c;
+  document.querySelectorAll('[data-swatch]').forEach(b => {
+    b.style.borderColor = b.dataset.swatch===c ? '#000' : 'transparent';
+  });
+}
+
+$('colorPicker') && $('colorPicker').addEventListener('input', e => pickSwatch(e.target.value));
+
+async function handleSaveRole(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  await upsertRole(f.get('name').trim(), $('colorPicker').value, S.editRole?.id);
+  $('roleDlg').close();
+}
+
+async function handleDeleteRole() {
+  if (!S.editRole || !confirm(`למחוק תפקיד "${S.editRole.name}"? המשימות ישארו ללא תפקיד.`)) return;
+  await deleteRole(S.editRole.id); $('roleDlg').close();
+}
+
+// ══════════════════════════════════════════
+// GLOBAL CLICK HANDLER
+// ══════════════════════════════════════════
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-nav],[data-toggle],[data-edit],[data-rf],[data-cal],[data-er]');
+  if (!b) return;
+  if (b.dataset.nav) { navTo(b.dataset.nav); return; }
+  if (b.dataset.toggle) { const t=S.tasks.find(x=>x.id===b.dataset.toggle); if(t) toggleTask(t); return; }
+  if (b.dataset.edit)   { const t=S.tasks.find(x=>x.id===b.dataset.edit);   if(t) openTaskDlg(t); return; }
+  if ('rf' in b.dataset) { S.roleFilter = b.dataset.rf || null; renderTasks(); return; }
+  if (b.dataset.cal !== undefined) {
+    const n=+b.dataset.cal;
+    if(n===0) S.calAnchor=new Date();
+    else S.calAnchor=new Date(S.calAnchor.getFullYear(), S.calAnchor.getMonth()+n, 1);
+    renderCalendar(); return;
+  }
+  if (b.dataset.er) { const r=S.roles.find(x=>x.id===b.dataset.er); if(r) openRoleDlg(r); return; }
+});
+
+// ══════════════════════════════════════════
+// REALTIME
+// ══════════════════════════════════════════
+function setupRealtime() {
+  sb.channel('task-sync')
+    .on('postgres_changes', {event:'*',schema:'public',table:'tasks',    filter:`user_id=eq.${S.user.id}`}, () => loadData())
+    .on('postgres_changes', {event:'*',schema:'public',table:'task_roles',filter:`user_id=eq.${S.user.id}`}, () => loadData())
+    .subscribe();
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+applyTheme(lsGet('td.theme', matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'));
+setAuthMode('login');
+
+sb.auth.onAuthStateChange(async (event, session) => {
+  S.user = session?.user || null;
+  if (S.user) {
+    const dn = S.user.user_metadata?.display_name || S.user.email;
+    const su = $('sideUser'); if (su) su.textContent = dn;
+    await loadData();
+    setupRealtime();
+    checkImport();
+    $('authScreen').classList.add('hidden');
+    $('appRoot').classList.remove('hidden');
+    navTo('tasks');
+  } else {
+    $('authScreen').classList.remove('hidden');
+    $('appRoot').classList.add('hidden');
+  }
+});
 </script>
 </body>
 </html>
