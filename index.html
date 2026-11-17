@@ -79,6 +79,7 @@
           </div>
         </div>
         <div id="authError" class="hidden text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg p-2"></div>
+        <div id="authInfo" class="hidden text-xs text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/40 rounded-lg p-2"></div>
         <button type="submit" id="authBtn" class="btn-primary w-full py-2.5">כניסה</button>
       </form>
     </div>
@@ -276,6 +277,7 @@ function setAuthMode(mode) {
   $('nameField').classList.toggle('hidden', login);
   $('authBtn').textContent = login ? 'כניסה' : 'הרשמה';
   $('authError').classList.add('hidden');
+  $('authInfo').classList.add('hidden');
   $('pwdInput').autocomplete = login ? 'current-password' : 'new-password';
   S.authMode = mode;
 }
@@ -298,14 +300,15 @@ async function handleAuth(e) {
   } else {
     const name = f.get('displayName')?.trim() || email.split('@')[0];
     ({ error: err } = await sb.auth.signUp({ email, password: pass, options: { data: { display_name: name } } }));
-    if (!err) { showAuthError('✉️ נשלח מייל אימות — אשר את הכתובת ואז היכנס.'); $('authBtn').disabled = false; setAuthMode('login'); return; }
+    if (!err) { showAuthInfo('✉️ נשלח מייל אימות — אשר את הכתובת ואז היכנס.'); $('authBtn').disabled = false; setAuthMode('login'); return; }
   }
   $('authBtn').disabled = false;
   setAuthMode(S.authMode);
   if (err) showAuthError(sbErr(err.message));
 }
 
-function showAuthError(msg) { const e = $('authError'); e.textContent = msg; e.classList.remove('hidden'); }
+function showAuthError(msg) { const e = $('authError'); e.textContent = msg; e.classList.remove('hidden'); $('authInfo').classList.add('hidden'); }
+function showAuthInfo(msg)  { const e = $('authInfo');  e.textContent = msg; e.classList.remove('hidden'); $('authError').classList.add('hidden'); }
 async function signOut() { await sb.auth.signOut(); location.reload(); }
 
 // ── DATA ──
