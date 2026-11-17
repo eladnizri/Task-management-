@@ -46,6 +46,7 @@
   @keyframes pop { from { opacity:0; transform:translateY(8px) scale(.98) } to { opacity:1; transform:none } }
   @media (prefers-reduced-motion: reduce) { dialog[open] { animation: none } }
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px) }
+  .safe-top { padding-top: env(safe-area-inset-top, 0px) }
   #_toast { position:fixed; bottom:5.5rem; left:50%; transform:translateX(-50%); background:#171717; color:#fff; border-radius:.75rem; padding:.5rem 1.25rem; font-size:.875rem; z-index:200; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; max-width:calc(100vw - 2rem); text-align:center; }
   #_toast.show { opacity:1; }
 </style>
@@ -53,7 +54,7 @@
 <body class="h-full antialiased">
 
 <!-- AUTH -->
-<div id="authScreen" class="min-h-full flex flex-col items-center justify-center p-6">
+<div id="authScreen" class="min-h-full flex flex-col items-center justify-center p-6 safe-top">
   <div id="sbLoadErr" class="hidden w-full max-w-sm mb-4 text-sm text-red-700 bg-red-100 rounded-xl p-3 text-center">
     שגיאה בטעינת הספרייה. בדוק חיבור אינטרנט ורענן.
   </div>
@@ -89,7 +90,7 @@
 </div>
 
 <!-- APP -->
-<div id="appRoot" class="hidden min-h-full">
+<div id="appRoot" class="hidden min-h-full safe-top">
   <div class="mx-auto w-full max-w-2xl">
     <div id="pageHeader" class="px-5 pt-7 pb-3"></div>
     <div id="pageContent" class="px-5 pb-36"></div>
