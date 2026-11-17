@@ -307,13 +307,20 @@ async function handleAuth(e) {
     const name = f.get('displayName')?.trim() || email.split('@')[0];
     let signUpData;
     ({ data: signUpData, error: err } = await sb.auth.signUp({ email, password: pass, options: { data: { display_name: name } } }));
-    console.log('[signup]', { err, session: !!signUpData?.session, user: signUpData?.user?.email });
     if (!err) {
       if (signUpData?.session) {
+        showAuthInfo('✅ נרשמת בהצלחה! מתחבר...');
         // auto-confirm on — onAuthStateChange will redirect automatically
         return;
       }
-      showAuthInfo('✉️ נשלח מייל אימות — אשר את הכתובת ואז היכנס.');
+      // No session returned — try signing in directly (handles auto-confirm edge cases)
+      const { data: loginData, error: loginErr } = await sb.auth.signInWithPassword({ email, password: pass });
+      if (!loginErr && loginData?.session) {
+        showAuthInfo('✅ נרשמת והתחברת בהצלחה! מתחבר...');
+        return; // onAuthStateChange will redirect
+      }
+      // Truly needs email confirmation
+      showAuthInfo('✉️ נשלח מייל אימות לכתובת ' + email + ' — אשר ואז חזור להתחבר.');
       $('authBtn').disabled = false; setAuthMode('login'); return;
     }
   }
