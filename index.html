@@ -818,7 +818,10 @@ document.addEventListener('click', e => {
 });
 
 // ── REALTIME ──
+let _realtimeReady = false;
 function setupRealtime() {
+  if (_realtimeReady) return;
+  _realtimeReady = true;
   sb.channel('task-sync')
     .on('postgres_changes', {event:'*',schema:'public',table:'tasks',     filter:`user_id=eq.${S.user.id}`}, () => loadData())
     .on('postgres_changes', {event:'*',schema:'public',table:'task_roles',filter:`user_id=eq.${S.user.id}`}, () => loadData())
@@ -828,9 +831,11 @@ function setupRealtime() {
 // ── INIT ──
 applyTheme(lsGet('td.theme', 'dark'));
 
-sb.auth.onAuthStateChange(async (event, session) => {
-  S.user = session?.user || null;
-  if (S.user) {
+// Restore session immediately — don't wait for onAuthStateChange
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    S.user = session.user;
     $('authScreen').classList.add('hidden');
     $('appRoot').classList.remove('hidden');
     S.loading = true;
@@ -838,9 +843,27 @@ sb.auth.onAuthStateChange(async (event, session) => {
     try { await loadData(); } catch(e) { S.loading = false; render(); console.warn('loadData', e); }
     setupRealtime();
     checkImport();
+  }
+})();
+
+sb.auth.onAuthStateChange(async (event, session) => {
+  const wasLoggedIn = !!S.user;
+  S.user = session?.user || null;
+  if (S.user) {
+    $('authScreen').classList.add('hidden');
+    $('appRoot').classList.remove('hidden');
+    if (!wasLoggedIn) {
+      // Fresh login — not already handled by getSession above
+      S.loading = true;
+      navTo('tasks');
+      try { await loadData(); } catch(e) { S.loading = false; render(); console.warn('loadData', e); }
+    }
+    setupRealtime();
+    checkImport();
   } else {
     $('authScreen').classList.remove('hidden');
     $('appRoot').classList.add('hidden');
+    _realtimeReady = false;
   }
 });
 </script>
