@@ -275,7 +275,7 @@ async function handleAuth(e) {
   const f = new FormData(e.target);
   const username = f.get('username')?.trim(), pass = f.get('password');
   if (!username || !pass) return;
-  const email = username.toLowerCase().replace(/\s+/g, '_') + '@tsk.app';
+  const email = Array.from(new TextEncoder().encode(username.toLowerCase().trim())).map(b=>b.toString(16).padStart(2,'0')).join('') + '@u.tsk.app';
   const btn = $('authBtn');
   btn.disabled = true; btn.textContent = '...';
   $('authError').classList.add('hidden');
