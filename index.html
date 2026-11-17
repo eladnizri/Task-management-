@@ -637,7 +637,6 @@ function renderAccount() {
             <button onclick="updateDisplayName()" class="btn-primary py-1.5 px-3 text-xs whitespace-nowrap">עדכן</button>
           </div>
         </div>
-        <p class="text-neutral-500 dark:text-neutral-400 text-xs">אימייל: <span class="text-neutral-900 dark:text-neutral-100">${esc(user?.email||'')}</span></p>
       </div>
     </section>
 
@@ -662,26 +661,6 @@ function renderAccount() {
     </section>
 
     <section class="card p-5 mb-4">
-      <h2 class="text-sm font-semibold mb-3">📧 דוח יומי במייל</h2>
-      <form id="emailForm" onsubmit="saveEmailSettings(event)" class="space-y-3">
-        <div>
-          <label class="label">שלח לאימייל</label>
-          <input name="email" type="email" value="${esc(user?.email||'')}" class="input w-full">
-        </div>
-        <div>
-          <label class="label">שעת שליחה</label>
-          <select name="hour" id="rHour" class="input w-full">
-            ${Array.from({length:24},(_,h)=>`<option value="${h}" ${h===7?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
-          </select>
-        </div>
-        <label class="flex items-center gap-2 text-sm cursor-pointer">
-          <input type="checkbox" name="enabled" id="rEnabled" checked class="h-4 w-4 rounded"> פעיל
-        </label>
-        <button type="submit" class="btn-primary">שמור הגדרות</button>
-      </form>
-    </section>
-
-    <section class="card p-5 mb-4">
       <h2 class="text-sm font-semibold mb-3">🎨 מראה</h2>
       <div class="flex items-center justify-between">
         <span class="text-sm">ערכת צבעים</span>
@@ -690,7 +669,6 @@ function renderAccount() {
         </div>
       </div>
     </section>`;
-  loadEmailSettings();
 }
 
 async function updateDisplayName() {
@@ -700,28 +678,6 @@ async function updateDisplayName() {
   if (error) { toast('שגיאה בעדכון השם', 'err'); return; }
   S.user.user_metadata = { ...S.user.user_metadata, display_name: val };
   toast('שם עודכן ✓');
-}
-
-async function loadEmailSettings() {
-  const { data } = await sb.from('email_report_settings').select('*').eq('user_id', S.user.id).maybeSingle();
-  if (!data) return;
-  const f = $('emailForm'); if (!f) return;
-  f.email.value = data.email;
-  $('rHour').value = data.send_hour;
-  $('rEnabled').checked = data.enabled;
-}
-
-async function saveEmailSettings(e) {
-  e.preventDefault();
-  const f = new FormData(e.target);
-  const { error } = await sb.from('email_report_settings').upsert({
-    user_id: S.user.id, email: f.get('email'),
-    send_hour: parseInt(f.get('hour')), enabled: !!f.get('enabled'),
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    updated_at: new Date().toISOString(),
-  });
-  if (error) toast('שגיאה בשמירה', 'err');
-  else toast('✅ הגדרות נשמרו');
 }
 
 // ── TASK MODAL ──
