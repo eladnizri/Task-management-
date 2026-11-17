@@ -96,7 +96,10 @@
     <div id="pageHeader" class="px-5 pt-7 pb-3"></div>
     <div id="pageContent" class="px-5 pb-36"></div>
   </div>
-  <nav class="fixed bottom-4 inset-x-0 z-20 flex justify-center safe-bottom pointer-events-none">
+  <nav class="fixed bottom-4 inset-x-0 z-20 flex items-center justify-center gap-3 safe-bottom pointer-events-none">
+    <button onclick="openTaskDlg(null)" aria-label="משימה חדשה"
+      class="pointer-events-auto grid h-[4.5rem] w-[4.5rem] place-items-center rounded-full bg-[#f5cf6b] text-[#151515] shadow-2xl transition active:scale-95">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
     <div class="pointer-events-auto flex gap-2 rounded-full bg-[#151515] p-2 shadow-2xl ring-1 ring-white/10">
       <button data-nav="tasks" aria-label="משימות" class="nav-b h-14 w-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 11h3v9h5v-6h4v6h5v-9h3z"/></svg>
@@ -176,12 +179,12 @@
 </dialog>
 
 <!-- ROLE DIALOG -->
-<dialog id="roleDlg" class="w-[min(22rem,96vw)] card p-0 shadow-2xl" aria-labelledby="roleDlgTitle">
+<dialog id="roleDlg" class="sheet w-[min(24rem,94vw)] rounded-[1.5rem] p-0 shadow-2xl" aria-labelledby="roleDlgTitle">
   <div class="p-5">
     <div class="flex items-center justify-between mb-4">
-      <h2 id="roleDlgTitle" class="font-semibold">תפקיד חדש</h2>
+      <h2 id="roleDlgTitle" class="text-xl font-bold">תפקיד חדש</h2>
       <button onclick="$('roleDlg').close()" aria-label="סגור"
-        class="flex items-center justify-center h-10 w-10 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition text-xl">&times;</button>
+        class="grid place-items-center h-9 w-9 shrink-0 rounded-full bg-[#151515] text-white text-lg">&times;</button>
     </div>
     <form id="roleForm" onsubmit="handleSaveRole(event)" class="space-y-3">
       <div>
@@ -191,14 +194,10 @@
       <div>
         <label class="label">צבע</label>
         <div class="flex flex-wrap gap-2 mb-2" id="colorSwatches"></div>
-        <input type="color" name="color" id="colorPicker" class="h-8 w-16 cursor-pointer rounded border border-neutral-200 dark:border-neutral-700">
+        <input type="color" name="color" id="colorPicker" aria-label="צבע מותאם" class="h-9 w-16 cursor-pointer rounded-full border border-black/20 bg-transparent">
       </div>
-      <div class="flex items-center gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
-        <button type="button" id="roleDelBtn" class="hidden text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg px-3 py-1.5" onclick="handleDeleteRole()">מחק</button>
-        <div class="flex-1"></div>
-        <button type="button" class="btn-ghost" onclick="$('roleDlg').close()">ביטול</button>
-        <button type="submit" class="btn-primary">שמור</button>
-      </div>
+      <button type="submit" id="roleSaveBtn" class="btn-primary w-full py-3 text-sm">שמור תפקיד</button>
+      <button type="button" id="roleDelBtn" class="hidden w-full rounded-full py-2 text-sm font-semibold text-[#151515]/70 hover:bg-black/10" onclick="handleDeleteRole()">מחק</button>
     </form>
   </div>
 </dialog>
@@ -243,6 +242,8 @@ const addDays  = (d, n) => { const x = dayStart(d); x.setDate(x.getDate()+n); re
 const startOfWeek = d => addDays(d, -dayStart(d).getDay());
 const sameDay = (a, b) => dayStart(a).getTime() === dayStart(b).getTime();
 const monthGrid = d => { const f = new Date(d.getFullYear(), d.getMonth(), 1); return Array.from({length:42}, (_,i) => addDays(startOfWeek(f), i)); };
+// datetime-local wants local wall-clock time without a zone
+const toLocalInput = v => { const d = new Date(v); return new Date(d - d.getTimezoneOffset()*6e4).toISOString().slice(0,16); };
 const fmtTime = iso => new Date(iso).toLocaleTimeString(HE, {hour:'numeric', minute:'2-digit'});
 const fmtDate = iso => new Date(iso).toLocaleDateString(HE, {month:'short', day:'numeric'});
 const roleColor = id => S.roles.find(r=>r.id===id)?.color || '#94a3b8';
@@ -328,14 +329,23 @@ async function signOut() { await sb.auth.signOut(); location.reload(); }
 
 
 // ── DATA ──
+const TASK_COLS = 'id,title,description,role_id,due,priority,done,tags,recurring,created_at';
+const ok = ({ data, error }) => { if (error) throw error; return data; };
+function putRow(key, row) {
+  const arr = S[key], i = arr.findIndex(x => x.id === row.id);
+  if (i >= 0) arr[i] = row; else arr.push(row);
+  arr.sort(key === 'tasks' ? (a,b) => new Date(a.due) - new Date(b.due) : (a,b) => a.name.localeCompare(b.name, HE));
+}
+const dropRow = (key, id) => { S[key] = S[key].filter(x => x.id !== id); };
+
 async function loadData() {
   if (!S.user) return;
-  const [{ data: tasks }, { data: roles }] = await Promise.all([
-    sb.from('tasks').select('id,title,description,role_id,due,priority,done,tags,recurring,created_at').order('due'),
-    sb.from('task_roles').select('id,name,color,user_id').order('name'),
+  const [tasks, roles] = await Promise.all([
+    sb.from('tasks').select(TASK_COLS).order('due').then(ok),
+    sb.from('task_roles').select('id,name,color').order('name').then(ok),
   ]);
-  S.tasks = tasks || []; S.roles = roles || [];
-  S.loading = false;
+  S.tasks = tasks; S.roles = roles;
+  S.loading = false; S.loadErr = false;
   render();
 }
 
@@ -346,27 +356,37 @@ async function upsertTask(data) {
     done: data.done || false, tags: Array.isArray(data.tags) ? data.tags : [],
     recurring: data.recurring || null,
   };
-  if (data.id) await sb.from('tasks').update(row).eq('id', data.id);
-  else await sb.from('tasks').insert(row);
-  await loadData();
+  if (data.id) {
+    const prev = S.tasks.find(t => t.id === data.id);
+    putRow('tasks', { ...prev, ...row }); render();
+    try { ok(await sb.from('tasks').update(row).eq('id', data.id)); }
+    catch (e) { putRow('tasks', prev); render(); throw e; }
+  } else {
+    putRow('tasks', ok(await sb.from('tasks').insert(row).select(TASK_COLS).single())); render();
+  }
 }
 
 async function toggleTask(task) {
   const done = !task.done;
-  const idx = S.tasks.findIndex(x => x.id === task.id);
-  if (idx >= 0) { S.tasks[idx] = { ...S.tasks[idx], done }; render(); }
-  if (done) {
-    toast('הושלם ✓', 'ok', async () => {
-      if (idx >= 0) { S.tasks[idx] = { ...S.tasks[idx], done: false }; render(); }
-      await sb.from('tasks').update({ done: false, done_at: null }).eq('id', task.id);
-    });
-  }
-  await sb.from('tasks').update({ done, done_at: done ? new Date().toISOString() : null }).eq('id', task.id);
-  if (done && task.recurring) {
-    const next = nextRecurDate(new Date(task.due), task.recurring);
-    if (next) await sb.from('tasks').insert({ user_id:S.user.id, title:task.title, description:task.description, role_id:task.role_id, due:next.toISOString(), priority:task.priority, done:false, tags:task.tags, recurring:task.recurring });
-  }
-  await loadData();
+  const set = d => { putRow('tasks', { ...task, done: d }); render(); };
+  let next = null;
+  set(done);
+  if (done) toast('הושלם ✓', 'ok', async () => {
+    set(false);
+    if (next) { dropRow('tasks', next.id); render(); }
+    try {
+      ok(await sb.from('tasks').update({ done: false, done_at: null }).eq('id', task.id));
+      if (next) ok(await sb.from('tasks').delete().eq('id', next.id));
+    } catch { toast('שגיאה בביטול', 'err'); }
+  });
+  try {
+    ok(await sb.from('tasks').update({ done, done_at: done ? new Date().toISOString() : null }).eq('id', task.id));
+    const nd = done && task.recurring && nextRecurDate(new Date(task.due), task.recurring);
+    if (nd) {
+      next = ok(await sb.from('tasks').insert({ user_id:S.user.id, title:task.title, description:task.description, role_id:task.role_id, due:nd.toISOString(), priority:task.priority, done:false, tags:task.tags, recurring:task.recurring }).select(TASK_COLS).single());
+      putRow('tasks', next); render();
+    }
+  } catch { set(task.done); toast('שגיאה בעדכון — בדוק חיבור', 'err'); }
 }
 
 function nextRecurDate(d, recurring) {
@@ -384,15 +404,31 @@ function nextRecurDate(d, recurring) {
   return null;
 }
 
-async function deleteTask(id) { await sb.from('tasks').delete().eq('id', id); await loadData(); }
-
-async function upsertRole(name, color, id) {
-  if (id) await sb.from('task_roles').update({ name, color }).eq('id', id);
-  else await sb.from('task_roles').insert({ user_id: S.user.id, name, color });
-  await loadData();
+async function deleteTask(id) {
+  const prev = S.tasks.find(t => t.id === id);
+  dropRow('tasks', id); render();
+  try { ok(await sb.from('tasks').delete().eq('id', id)); }
+  catch { putRow('tasks', prev); render(); toast('שגיאה במחיקה — בדוק חיבור', 'err'); }
 }
 
-async function deleteRole(id) { await sb.from('task_roles').delete().eq('id', id); await loadData(); }
+async function upsertRole(name, color, id) {
+  if (id) {
+    const prev = S.roles.find(r => r.id === id);
+    putRow('roles', { ...prev, name, color }); render();
+    try { ok(await sb.from('task_roles').update({ name, color }).eq('id', id)); }
+    catch (e) { putRow('roles', prev); render(); throw e; }
+  } else {
+    putRow('roles', ok(await sb.from('task_roles').insert({ user_id: S.user.id, name, color }).select('id,name,color').single())); render();
+  }
+}
+
+async function deleteRole(id) {
+  ok(await sb.from('task_roles').delete().eq('id', id));
+  dropRow('roles', id);
+  S.tasks.forEach(t => { if (t.role_id === id) t.role_id = null; });
+  if (S.roleFilter === id) S.roleFilter = null;
+  render();
+}
 
 // ── IMPORT ──
 function checkImport() {
@@ -522,55 +558,33 @@ function dateStrip() {
   </div>`;
 }
 
-function renderTasks() {
-  const now = new Date(), today = dayStart(now);
+function taskGroups() {
+  const today = dayStart(new Date());
   const tmrw = addDays(today,1), dayAfter = addDays(today,2), weekEnd = addDays(today,8);
   const all = S.tasks.filter(t => !S.roleFilter || t.role_id === S.roleFilter);
-  const pend = all.filter(t=>!t.done), done = all.filter(t=>t.done);
-  const overdue   = pend.filter(t=>new Date(t.due)<today);
-  const todayT    = pend.filter(t=>{ const d=new Date(t.due); return d>=today&&d<tmrw; });
-  const tomorrowT = pend.filter(t=>{ const d=new Date(t.due); return d>=tmrw&&d<dayAfter; });
-  const impWeek   = pend.filter(t=>{ const d=new Date(t.due); return t.priority==='high'&&d>=dayAfter&&d<weekEnd; });
-  const rest      = pend.filter(t=>{ const d=new Date(t.due); return d>=dayAfter&&!(t.priority==='high'&&d<weekEnd); });
-  const dn = S.user?.user_metadata?.display_name || S.user?.email || '?';
+  const pend = all.filter(t=>!t.done);
+  return { today, all, pend,
+    done:      all.filter(t=>t.done),
+    overdue:   pend.filter(t=>new Date(t.due)<today),
+    todayT:    pend.filter(t=>{ const d=new Date(t.due); return d>=today&&d<tmrw; }),
+    tomorrowT: pend.filter(t=>{ const d=new Date(t.due); return d>=tmrw&&d<dayAfter; }),
+    impWeek:   pend.filter(t=>{ const d=new Date(t.due); return t.priority==='high'&&d>=dayAfter&&d<weekEnd; }),
+    rest:      pend.filter(t=>{ const d=new Date(t.due); return d>=dayAfter&&!(t.priority==='high'&&d<weekEnd); }),
+  };
+}
 
-  $('pageHeader').innerHTML = `
-    <div class="flex items-center justify-between">
-      <button onclick="openTaskDlg(null)" class="inline-flex items-center gap-2 rounded-full bg-[#f5cf6b] py-1.5 pe-4 ps-1.5 text-sm font-bold text-[#151515] transition hover:opacity-90">
-        <span class="grid h-7 w-7 place-items-center rounded-full bg-[#151515] text-lg leading-none text-white">+</span>משימה חדשה</button>
-      <button data-nav="account" aria-label="חשבון" class="grid h-11 w-11 place-items-center rounded-full surface2 text-lg font-bold">${esc(dn.trim()[0].toUpperCase())}</button>
-    </div>
-    <div class="mt-7 flex items-end justify-between gap-3">
-      <h1 class="text-3xl font-bold leading-tight">ניהול המשימות שלך</h1>
-      ${S.day?`<button data-day="" class="shrink-0 pb-1 text-sm muted hover:underline">ראה הכל</button>`:''}
-    </div>
-    <p class="mt-1 text-sm muted">${pend.length} פתוחות${overdue.length?` · ${overdue.length} באיחור`:''}</p>`;
-
+function taskListHtml() {
+  const { today, all, done, overdue, todayT, tomorrowT, impWeek, rest } = taskGroups();
+  const q = (S.q || '').trim().toLowerCase();
+  if (q) {
+    const hits = all.filter(t => [t.title, t.description, ...(t.tags||[])].some(s => s?.toLowerCase().includes(q))).sort((a,b)=>a.done-b.done);
+    return section('תוצאות חיפוש', hits, 'לא נמצאו משימות תואמות');
+  }
   const chips = S.roles.length > 1 ? `<div class="no-sb -mx-5 mb-6 flex gap-2 overflow-x-auto px-5">
     <button data-rf="" class="pill shrink-0 ${!S.roleFilter?'on':''}">כל התפקידים</button>
     ${S.roles.map(r=>`<button data-rf="${r.id}" class="pill shrink-0 inline-flex items-center gap-1.5 ${S.roleFilter===r.id?'on':''}">
       <span class="h-2.5 w-2.5 rounded-full" style="background:${r.color}"></span>${esc(r.name)}</button>`).join('')}
   </div>` : '';
-
-  if (S.loading) {
-    $('pageContent').innerHTML = `<div class="space-y-3">
-      ${Array(3).fill(`<div class="card p-4 space-y-2 animate-pulse">
-        <div class="h-4 rounded bg-[#2a2a2d] w-3/4"></div>
-        <div class="h-3 rounded bg-[#2a2a2d] w-1/2"></div>
-      </div>`).join('')}
-    </div>`;
-    return;
-  }
-  if (!S.tasks.length) {
-    $('pageContent').innerHTML = `<div class="card px-6 py-14 text-center">
-      <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-[#cfe08f] text-3xl">📋</div>
-      <p class="mb-1 text-lg font-bold">עדיין אין משימות</p>
-      <p class="mb-6 text-sm muted">הוסף את המשימה הראשונה שלך</p>
-      <button onclick="openTaskDlg(null)" class="btn-primary">+ משימה חדשה</button>
-    </div>`;
-    return;
-  }
-
   let body;
   if (S.day) {
     const list = all.filter(t=>sameDay(new Date(t.due),S.day)).sort((a,b)=>a.done-b.done);
@@ -584,7 +598,53 @@ function renderTasks() {
       (done.length ? `<button onclick="toggleShowDone()" class="pill mx-auto block">${S.showDone?'הסתר שהושלמו':'הצג '+done.length+' שהושלמו'}</button>` : '') +
       (S.showDone && done.length ? '<div class="mt-6">'+section('הושלמו', done.slice(0,20))+'</div>' : '');
   }
-  $('pageContent').innerHTML = dateStrip() + chips + body;
+  return dateStrip() + chips + body;
+}
+
+function onSearch(v) {
+  S.q = v;
+  $('taskList').innerHTML = taskListHtml();
+}
+
+function renderTasks() {
+  const { pend, overdue } = taskGroups();
+  $('pageHeader').innerHTML = `
+    <div class="flex items-end justify-between gap-3">
+      <h1 class="text-3xl font-bold leading-tight">ניהול המשימות שלך</h1>
+      ${S.day?`<button data-day="" class="shrink-0 pb-1 text-sm muted hover:underline">ראה הכל</button>`:''}
+    </div>
+    <p class="mt-1 text-sm muted">${S.loading ? 'טוען…' : `${pend.length} פתוחות${overdue.length?` · ${overdue.length} באיחור`:''}`}</p>`;
+
+  if (S.loading) {
+    $('pageContent').innerHTML = `<div class="space-y-3" aria-busy="true">
+      ${Array(3).fill(`<div class="card p-4 space-y-2 animate-pulse">
+        <div class="h-4 rounded surface2 w-3/4"></div>
+        <div class="h-3 rounded surface2 w-1/2"></div>
+      </div>`).join('')}
+    </div>`;
+    return;
+  }
+  if (S.loadErr) {
+    $('pageContent').innerHTML = `<div class="card px-6 py-14 text-center">
+      <p class="mb-1 text-lg font-bold">לא הצלחנו לטעון את המשימות</p>
+      <p class="mb-6 text-sm muted">בדוק את החיבור לאינטרנט ונסה שוב</p>
+      <button onclick="boot()" class="btn-primary">נסה שוב</button>
+    </div>`;
+    return;
+  }
+  if (!S.tasks.length) {
+    $('pageContent').innerHTML = `<div class="card px-6 py-14 text-center">
+      <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-[#cfe08f] text-3xl">📋</div>
+      <p class="mb-1 text-lg font-bold">עדיין אין משימות</p>
+      <p class="mb-6 text-sm muted">הוסף את המשימה הראשונה שלך</p>
+      <button onclick="openTaskDlg(null)" class="btn-primary">+ משימה חדשה</button>
+    </div>`;
+    return;
+  }
+
+  $('pageContent').innerHTML = `<input id="searchIn" type="search" value="${esc(S.q||'')}" placeholder="חיפוש משימות" aria-label="חיפוש משימות"
+    oninput="onSearch(this.value)" class="input w-full mb-4">
+    <div id="taskList">${taskListHtml()}</div>`;
   document.querySelector('#dayStrip .on')?.scrollIntoView({inline:'center', block:'nearest'});
 }
 
@@ -604,6 +664,8 @@ function renderCalendar() {
       </div>
     </div>`;
   const head = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+  const sel = S.calDay || dayStart(new Date());
+  const dayList = S.tasks.filter(t=>sameDay(new Date(t.due),sel)).sort((a,b)=>a.done-b.done);
   $('pageContent').innerHTML = `<div class="card p-3">
     <div class="grid grid-cols-7 pb-2 text-center text-xs font-semibold muted">${head.map(h=>`<div>${h}</div>`).join('')}</div>
     <div class="grid grid-cols-7 gap-1">
@@ -611,7 +673,7 @@ function renderCalendar() {
         const list = S.tasks.filter(t=>!t.done&&sameDay(new Date(t.due),d));
         const isToday = sameDay(d,new Date());
         const narrow = window.innerWidth < 500;
-        return `<button data-goday="${d.getTime()}" class="min-h-[5.5rem] rounded-2xl p-1 text-start w-full ${d.getMonth()===month?'surface2 hover:opacity-90':'opacity-40'}">
+        return `<button data-goday="${d.getTime()}" aria-pressed="${sameDay(d,sel)}" class="min-h-[5.5rem] rounded-2xl p-1 text-start w-full transition ${d.getMonth()===month?'surface2 hover:opacity-90':'opacity-40'} ${sameDay(d,sel)?'ring-2 ring-[#f5cf6b]':''}">
           <div class="mb-1 grid h-6 w-6 place-items-center rounded-full text-xs font-bold tabular-nums ${isToday?'bg-[#f5cf6b] text-[#151515]':''}">${d.getDate()}</div>
           ${narrow
             ? list.slice(0,4).map(t=>`<span class="inline-block mb-0.5 me-0.5 h-2 w-2 rounded-full" style="background:${roleColor(t.role_id)}"></span>`).join('')
@@ -621,7 +683,8 @@ function renderCalendar() {
         </button>`;
       }).join('')}
     </div>
-  </div>`;
+  </div>
+  <div class="mt-6">${section(sameDay(sel,new Date())?'היום':sel.toLocaleDateString(HE,{weekday:'long',day:'numeric',month:'long'}), dayList, 'אין משימות ביום הזה')}</div>`;
 }
 
 function renderAccount() {
@@ -653,8 +716,8 @@ function renderAccount() {
       </div>
       ${S.loading
         ? Array(2).fill(`<div class="flex items-center gap-3 py-2.5 border-b border-neutral-100 dark:border-neutral-800 last:border-0 animate-pulse">
-          <div class="h-4 w-4 rounded-full shrink-0 bg-[#2a2a2d]"></div>
-          <div class="h-3 rounded bg-[#2a2a2d] w-1/3"></div>
+          <div class="h-4 w-4 rounded-full shrink-0 surface2"></div>
+          <div class="h-3 rounded surface2 w-1/3"></div>
         </div>`).join('')
         : S.roles.length ? S.roles.map(r=>`
         <div class="flex items-center gap-3 py-2.5 border-b border-neutral-100 dark:border-neutral-800 last:border-0">
@@ -702,7 +765,7 @@ function openTaskDlg(task) {
   $('customDays').classList.add('hidden');
   if (task) {
     f.title.value = task.title; f.desc.value = task.description || '';
-    f.due.value = task.due ? task.due.slice(0,16) : '';
+    f.due.value = task.due ? toLocalInput(task.due) : '';
     f.priority.value = task.priority;
     f.tags.value = Array.isArray(task.tags) ? task.tags.join(', ') : '';
     if (task.recurring?.startsWith('days:')) {
@@ -711,7 +774,7 @@ function openTaskDlg(task) {
     } else { $('recurSelect').value = task.recurring || ''; }
   } else {
     const d = new Date(); d.setMinutes(0,0,0); d.setHours(d.getHours()+1);
-    f.due.value = new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,16);
+    f.due.value = toLocalInput(d);
   }
   $('taskDlg').showModal(); f.title.focus();
 }
@@ -732,14 +795,14 @@ async function handleSaveTask(e) {
     await upsertTask({
       id: S.editTask?.id,
       title: f.get('title').trim(), description: f.get('desc').trim(),
-      role_id: f.get('role') || null, due: f.get('due'),
+      role_id: f.get('role') || null, due: new Date(f.get('due')).toISOString(),
       priority: f.get('priority'), done: S.editTask?.done || false,
       tags: (f.get('tags')||'').split(',').map(s=>s.trim()).filter(Boolean),
       recurring,
     });
     $('taskDlg').close();
   } catch {
-    toast('שגיאה בשמירה', 'err');
+    toast('השמירה נכשלה — בדוק חיבור ונסה שוב', 'err');
     btn.disabled = false; btn.textContent = 'נסה שוב';
   }
 }
@@ -754,8 +817,8 @@ async function handleDeleteTask() {
     return;
   }
   clearTimeout(_delTaskTimer);
-  await deleteTask(S.editTask.id);
   $('taskDlg').close();
+  await deleteTask(S.editTask.id);
 }
 
 // ── ROLE MODAL ──
@@ -772,22 +835,24 @@ function openRoleDlg(role) {
   else { $('colorPicker').value = PALETTE[S.roles.length % PALETTE.length]; }
   $('colorSwatches').innerHTML = PALETTE.map(c=>`<button type="button" data-swatch="${c}"
     class="h-7 w-7 rounded-full border-2 transition hover:scale-110"
-    style="background:${c};border-color:${$('colorPicker').value===c?'#000':'transparent'}" onclick="pickSwatch('${c}')"></button>`).join('');
+    style="background:${c};border-color:${$('colorPicker').value===c?'#000':'rgba(0,0,0,.18)'}" onclick="pickSwatch('${c}')"></button>`).join('');
   $('roleDlg').showModal(); f.name.focus();
 }
 
 function pickSwatch(c) {
   $('colorPicker').value = c;
-  document.querySelectorAll('[data-swatch]').forEach(b => { b.style.borderColor = b.dataset.swatch===c ? '#000' : 'transparent'; });
+  document.querySelectorAll('[data-swatch]').forEach(b => { b.style.borderColor = b.dataset.swatch===c ? '#000' : 'rgba(0,0,0,.18)'; });
 }
 
 $('colorPicker') && $('colorPicker').addEventListener('input', e => pickSwatch(e.target.value));
 
 async function handleSaveRole(e) {
   e.preventDefault();
-  const f = new FormData(e.target);
-  await upsertRole(f.get('name').trim(), $('colorPicker').value, S.editRole?.id);
-  $('roleDlg').close();
+  const f = new FormData(e.target), btn = $('roleSaveBtn');
+  btn.disabled = true;
+  try { await upsertRole(f.get('name').trim(), $('colorPicker').value, S.editRole?.id); $('roleDlg').close(); }
+  catch { toast('השמירה נכשלה — בדוק חיבור ונסה שוב', 'err'); }
+  btn.disabled = false;
 }
 
 async function handleDeleteRole() {
@@ -800,8 +865,8 @@ async function handleDeleteRole() {
     return;
   }
   clearTimeout(_delRoleTimer);
-  await deleteRole(S.editRole.id);
-  $('roleDlg').close();
+  try { await deleteRole(S.editRole.id); $('roleDlg').close(); }
+  catch { toast('המחיקה נכשלה — בדוק חיבור ונסה שוב', 'err'); }
 }
 
 // ── GLOBAL CLICKS ──
@@ -809,14 +874,14 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-nav],[data-toggle],[data-edit],[data-rf],[data-cal],[data-er],[data-day],[data-goday]');
   if (!b) return;
   if ('day' in b.dataset) { S.day = b.dataset.day ? new Date(+b.dataset.day) : null; renderTasks(); return; }
-  if (b.dataset.goday) { S.day = new Date(+b.dataset.goday); navTo('tasks'); return; }
+  if (b.dataset.goday) { S.calDay = new Date(+b.dataset.goday); renderCalendar(); return; }
   if (b.dataset.nav)    { navTo(b.dataset.nav); return; }
   if (b.dataset.toggle) { const t=S.tasks.find(x=>x.id===b.dataset.toggle); if(t) toggleTask(t); return; }
   if (b.dataset.edit)   { const t=S.tasks.find(x=>x.id===b.dataset.edit);   if(t) openTaskDlg(t); return; }
   if ('rf' in b.dataset) { S.roleFilter = b.dataset.rf || null; renderTasks(); return; }
   if (b.dataset.cal !== undefined) {
     const n=+b.dataset.cal;
-    if(n===0) S.calAnchor=new Date();
+    if(n===0) { S.calAnchor=new Date(); S.calDay=null; }
     else S.calAnchor=new Date(S.calAnchor.getFullYear(), S.calAnchor.getMonth()+n, 1);
     renderCalendar(); return;
   }
@@ -828,50 +893,50 @@ let _realtimeReady = false;
 function setupRealtime() {
   if (_realtimeReady) return;
   _realtimeReady = true;
+  const apply = key => ({ eventType, new: n, old: o }) => {
+    if (eventType === 'DELETE') dropRow(key, o.id); else putRow(key, n);
+    if (!S.loading) render();
+  };
   sb.channel('task-sync')
-    .on('postgres_changes', {event:'*',schema:'public',table:'tasks',     filter:`user_id=eq.${S.user.id}`}, () => loadData())
-    .on('postgres_changes', {event:'*',schema:'public',table:'task_roles',filter:`user_id=eq.${S.user.id}`}, () => loadData())
+    .on('postgres_changes', {event:'*',schema:'public',table:'tasks',     filter:`user_id=eq.${S.user.id}`}, apply('tasks'))
+    .on('postgres_changes', {event:'*',schema:'public',table:'task_roles',filter:`user_id=eq.${S.user.id}`}, apply('roles'))
     .subscribe();
 }
 
 // ── INIT ──
 applyTheme(lsGet('td.theme', 'dark'));
 
-// Restore session immediately — don't wait for onAuthStateChange
+function showApp() { $('authScreen').classList.add('hidden'); $('appRoot').classList.remove('hidden'); }
+
+async function boot() {
+  S.loading = true; S.loadErr = false;
+  navTo(S.page);
+  try { await loadData(); }
+  catch (e) { S.loading = false; S.loadErr = true; render(); console.warn('loadData', e); }
+  setupRealtime();
+  checkImport();
+}
+
 (async () => {
   const { data: { session } } = await sb.auth.getSession();
-  if (session?.user) {
-    S.user = session.user;
-    $('authScreen').classList.add('hidden');
-    $('appRoot').classList.remove('hidden');
-    S.loading = true;
-    navTo('tasks');
-    try { await loadData(); } catch(e) { S.loading = false; render(); console.warn('loadData', e); }
-    setupRealtime();
-    checkImport();
-  }
+  if (session?.user && !S.user) { S.user = session.user; showApp(); boot(); }
 })();
 
-sb.auth.onAuthStateChange(async (event, session) => {
+// Don't await Supabase calls inside this callback — supabase-js can deadlock on its auth lock
+sb.auth.onAuthStateChange((event, session) => {
   const wasLoggedIn = !!S.user;
   S.user = session?.user || null;
   if (S.user) {
-    $('authScreen').classList.add('hidden');
-    $('appRoot').classList.remove('hidden');
-    if (!wasLoggedIn) {
-      // Fresh login — not already handled by getSession above
-      S.loading = true;
-      navTo('tasks');
-      try { await loadData(); } catch(e) { S.loading = false; render(); console.warn('loadData', e); }
-    }
-    setupRealtime();
-    checkImport();
+    showApp();
+    if (!wasLoggedIn) boot();
   } else {
     $('authScreen').classList.remove('hidden');
     $('appRoot').classList.add('hidden');
     _realtimeReady = false;
   }
 });
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
 </html>
