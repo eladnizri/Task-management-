@@ -299,8 +299,16 @@ async function handleAuth(e) {
     ({ error: err } = await sb.auth.signInWithPassword({ email, password: pass }));
   } else {
     const name = f.get('displayName')?.trim() || email.split('@')[0];
-    ({ error: err } = await sb.auth.signUp({ email, password: pass, options: { data: { display_name: name } } }));
-    if (!err) { showAuthInfo('✉️ נשלח מייל אימות — אשר את הכתובת ואז היכנס.'); $('authBtn').disabled = false; setAuthMode('login'); return; }
+    let signUpData;
+    ({ data: signUpData, error: err } = await sb.auth.signUp({ email, password: pass, options: { data: { display_name: name } } }));
+    if (!err) {
+      if (signUpData?.session) {
+        // auto-confirm on — onAuthStateChange will redirect automatically
+        return;
+      }
+      showAuthInfo('✉️ נשלח מייל אימות — אשר את הכתובת ואז היכנס.');
+      $('authBtn').disabled = false; setAuthMode('login'); return;
+    }
   }
   $('authBtn').disabled = false;
   setAuthMode(S.authMode);
