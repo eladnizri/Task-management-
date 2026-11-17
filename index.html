@@ -7,7 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com/3.4.16"></script>
 <script>tailwind.config = { darkMode: 'class' }</script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/dist/umd/supabase.js" onerror="document.getElementById('sbLoadErr').classList.remove('hidden')"></script>
+<script>window._sbLoaded = typeof supabase !== 'undefined';</script>
 <style>
   :root { --bg:#efeee9; --surface:#fff; --surface2:#e3e2dc; --text:#151515; --muted:#6b6b6b; --pill-muted:#5a5a5a; --line:#d6d5cf; --accent:#f5cf6b; --coral:#e8695a; --ink:#151515 }
   .dark { --bg:#1c1c1e; --surface:#2a2a2d; --surface2:#38383b; --text:#f4f4f2; --muted:#9a9a9a; --pill-muted:#b0b0b0; --line:#3d3d40 }
@@ -48,6 +49,9 @@
 
 <!-- AUTH -->
 <div id="authScreen" class="min-h-full flex flex-col items-center justify-center p-6">
+  <div id="sbLoadErr" class="hidden w-full max-w-sm mb-4 text-sm text-red-700 bg-red-100 rounded-xl p-3 text-center">
+    שגיאה בטעינת הספרייה. בדוק חיבור אינטרנט ורענן.
+  </div>
   <div class="w-full max-w-sm">
     <div class="mb-8">
       <div class="inline-grid place-items-center h-14 w-14 rounded-full bg-[#f5cf6b] text-2xl mb-5">✓</div>
@@ -210,6 +214,12 @@
 </dialog>
 
 <script>
+if (typeof supabase === 'undefined') {
+  document.getElementById('sbLoadErr').classList.remove('hidden');
+  document.getElementById('authForm').style.pointerEvents = 'none';
+  document.getElementById('authForm').style.opacity = '0.4';
+  throw new Error('Supabase CDN failed to load');
+}
 const SB_URL = 'https://gytxwjlicawlfdehszil.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5dHh3amxpY2F3bGZkZWhzemlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1MTUyMzgsImV4cCI6MjEwMTA5MTIzOH0.LIBV2W0FTq4MHlyO2Z4iiPvBBGBP1btJaJ-qzUrig64';
 const PALETTE = ['#cfe08f','#f5cf6b','#e8695a','#dadad5','#a9c7f2','#c9b6f2','#f2b5d4','#9fd8c8','#f4a76b','#b5d99c'];
@@ -313,8 +323,8 @@ async function handleAuth(e) {
           showAuthInfo('✅ נרשמת והתחברת בהצלחה! מתחבר...');
           return;
         }
-        showAuthInfo('✉️ נשלח מייל אימות לכתובת ' + email + ' — אשר ואז חזור להתחבר.');
-        $('authBtn').disabled = false; setAuthMode('login'); return;
+        $('authBtn').disabled = false; setAuthMode('login');
+        showAuthInfo('✉️ נשלח מייל אימות לכתובת ' + email + ' — אשר אותו ואז התחבר כאן.'); return;
       }
     }
     $('authBtn').disabled = false;
