@@ -64,13 +64,9 @@
         <button id="tabRegister" onclick="setAuthMode('register')" class="flex-1 rounded-lg py-2 text-sm font-medium transition">הרשמה</button>
       </div>
       <form id="authForm" onsubmit="handleAuth(event)" class="space-y-3">
-        <div id="nameField" class="hidden">
-          <label class="label">שם לתצוגה</label>
-          <input name="displayName" placeholder="השם שלך" autocomplete="name" class="input w-full">
-        </div>
         <div>
-          <label class="label">אימייל</label>
-          <input name="email" type="email" required placeholder="you@example.com" autocomplete="email" class="input w-full">
+          <label class="label">שם משתמש</label>
+          <input name="username" id="usernameInput" required placeholder="הכנס שם משתמש" autocomplete="username" class="input w-full">
         </div>
         <div>
           <label class="label">סיסמה</label>
@@ -269,8 +265,8 @@ function toast(msg, type='ok', undoCb=null) {
 
 function sbErr(msg) {
   if (!msg) return 'שגיאה. נסה שוב.';
-  if (msg.includes('Invalid login credentials')) return 'אימייל או סיסמה שגויים';
-  if (msg.includes('already registered') || msg.includes('already been registered')) return 'כתובת אימייל זו כבר רשומה';
+  if (msg.includes('Invalid login credentials')) return 'שם משתמש או סיסמה שגויים';
+  if (msg.includes('already registered') || msg.includes('already been registered')) return 'שם משתמש תפוס — בחר אחר';
   if (msg.includes('Email not confirmed')) return 'האימייל טרם אושר — בדוק את תיבת הדואר';
   if (msg.includes('Password should be') || msg.includes('weak_password')) return 'הסיסמה חייבת להכיל לפחות 6 תווים';
   if (msg.includes('rate limit') || msg.includes('too many')) return 'נסיונות רבים מדי — נסה שוב עוד דקה';
@@ -284,7 +280,6 @@ function setAuthMode(mode) {
   const off = 'flex-1 rounded-full py-2 text-sm font-medium muted';
   $('tabLogin').className = login ? on : off;
   $('tabRegister').className = login ? off : on;
-  $('nameField').classList.toggle('hidden', login);
   $('authBtn').textContent = login ? 'כניסה' : 'הרשמה';
   $('authError').classList.add('hidden');
   $('authInfo').classList.add('hidden');
@@ -301,18 +296,19 @@ function togglePwd() {
 async function handleAuth(e) {
   e.preventDefault();
   const f = new FormData(e.target);
-  const email = f.get('email')?.trim(), pass = f.get('password');
-  if (!email || !pass) return;
+  const username = f.get('username')?.trim().toLowerCase().replace(/\s+/g, '_'), pass = f.get('password');
+  if (!username || !pass) return;
+  const email = username + '@tsk.app';
   $('authBtn').disabled = true; $('authBtn').textContent = '...';
   $('authError').classList.add('hidden');
   try {
     let err;
     if (S.authMode === 'login') {
       ({ error: err } = await sb.auth.signInWithPassword({ email, password: pass }));
+      if (err) showAuthError('שם משתמש או סיסמה שגויים');
     } else {
-      const name = f.get('displayName')?.trim() || email.split('@')[0];
       let signUpData;
-      ({ data: signUpData, error: err } = await sb.auth.signUp({ email, password: pass, options: { data: { display_name: name } } }));
+      ({ data: signUpData, error: err } = await sb.auth.signUp({ email, password: pass, options: { data: { display_name: username } } }));
       if (!err) {
         if (signUpData?.session) {
           showAuthInfo('✅ נרשמת בהצלחה! מתחבר...');
@@ -323,13 +319,17 @@ async function handleAuth(e) {
           showAuthInfo('✅ נרשמת והתחברת בהצלחה! מתחבר...');
           return;
         }
-        $('authBtn').disabled = false; setAuthMode('login');
-        showAuthInfo('✉️ נשלח מייל אימות לכתובת ' + email + ' — אשר אותו ואז התחבר כאן.'); return;
+        showAuthError('הרישום הצליח אך הכניסה נכשלה. נסה להתחבר ידנית.');
+        setAuthMode('login'); return;
+      }
+      if (err?.message?.includes('already registered') || err?.message?.includes('already been registered')) {
+        showAuthError('שם משתמש תפוס — בחר אחר');
+      } else {
+        showAuthError(sbErr(err?.message));
       }
     }
     $('authBtn').disabled = false;
     setAuthMode(S.authMode);
-    if (err) showAuthError(sbErr(err.message));
   } catch(ex) {
     $('authBtn').disabled = false;
     setAuthMode(S.authMode);
