@@ -9,13 +9,33 @@
 <script>tailwind.config = { darkMode: 'class' }</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/dist/umd/supabase.js"></script>
 <style>
-  body { font-family: 'Heebo', 'Arial Hebrew', sans-serif }
-  .input { @apply rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-neutral-900 dark:text-neutral-100; }
-  .label { @apply block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1; }
-  .btn-primary { @apply rounded-xl bg-neutral-900 dark:bg-white px-4 py-2 text-sm font-medium text-white dark:text-neutral-900 hover:opacity-90 transition; }
-  .btn-ghost { @apply rounded-xl px-3 py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition; }
-  .card { @apply rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900; }
-  dialog::backdrop { background: rgb(0 0 0 / .5) }
+  :root { --bg:#efeee9; --surface:#fff; --surface2:#e3e2dc; --text:#151515; --muted:#6b6b6b; --line:#d6d5cf; --accent:#f5cf6b; --coral:#e8695a; --ink:#151515 }
+  .dark { --bg:#1c1c1e; --surface:#2a2a2d; --surface2:#38383b; --text:#f4f4f2; --muted:#9a9a9a; --line:#3d3d40 }
+  body { font-family: 'Heebo', 'Arial Hebrew', sans-serif; background:var(--bg); color:var(--text) }
+  .muted { color:var(--muted) }
+  .surface2 { background:var(--surface2) }
+  .input { width:100%; border-radius:999px; border:1.5px solid var(--line); background:transparent; padding:.7rem 1.1rem; font-size:.9rem; color:inherit; outline:none; transition:border-color .15s }
+  .input:focus-visible { border-color:var(--text) }
+  textarea.input { border-radius:1.25rem }
+  .input option { color:#151515 }
+  .label { display:block; font-size:.85rem; font-weight:600; margin-bottom:.4rem }
+  .btn-primary { border-radius:999px; background:var(--ink); color:#fff; padding:.7rem 1.4rem; font-size:.9rem; font-weight:600; transition:opacity .15s }
+  .dark .btn-primary { background:var(--accent); color:#151515 }
+  .btn-primary:hover { opacity:.9 } .btn-primary:disabled { opacity:.6 }
+  .btn-ghost { border-radius:999px; padding:.6rem 1rem; font-size:.9rem; color:var(--muted) }
+  .btn-ghost:hover { background:var(--surface2) }
+  .card { border-radius:1.75rem; background:var(--surface) }
+  .pill { border-radius:999px; padding:.5rem 1rem; font-size:.8rem; font-weight:500; background:var(--surface2); color:var(--muted); white-space:nowrap; line-height:1.15; transition:background .15s }
+  .pill.on { background:var(--accent); color:#151515; font-weight:700 }
+  .sheet { background:var(--coral); color:#151515 }
+  .sheet .input { border-color:rgb(0 0 0 / .28); background:rgb(255 255 255 / .06) }
+  .sheet .input:focus-visible { border-color:#151515 }
+  .sheet .input::placeholder { color:rgb(0 0 0 / .45) }
+  .sheet .btn-primary { background:#151515; color:#fff }
+  .sheet .btn-ghost { color:rgb(0 0 0 / .65) } .sheet .btn-ghost:hover { background:rgb(0 0 0 / .08) }
+  .no-sb { scrollbar-width:none } .no-sb::-webkit-scrollbar { display:none }
+  dialog { color:var(--text) }
+  dialog::backdrop { background: rgb(0 0 0 / .6) }
   dialog[open] { animation: pop .15s ease both }
   @keyframes pop { from { opacity:0; transform:translateY(8px) scale(.98) } to { opacity:1; transform:none } }
   @media (prefers-reduced-motion: reduce) { dialog[open] { animation: none } }
@@ -24,18 +44,18 @@
   #_toast.show { opacity:1; }
 </style>
 </head>
-<body class="h-full bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 antialiased">
+<body class="h-full antialiased">
 
 <!-- AUTH -->
-<div id="authScreen" class="min-h-full flex flex-col items-center justify-center p-6 bg-neutral-50 dark:bg-neutral-950">
+<div id="authScreen" class="min-h-full flex flex-col items-center justify-center p-6">
   <div class="w-full max-w-sm">
-    <div class="text-center mb-8">
-      <div class="text-4xl mb-3">📋</div>
-      <h1 class="text-2xl font-bold">לוח תפקידים</h1>
-      <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">ניהול משימות לכל תפקידיך</p>
+    <div class="mb-8">
+      <div class="inline-grid place-items-center h-14 w-14 rounded-full bg-[#f5cf6b] text-2xl mb-5">✓</div>
+      <h1 class="text-4xl font-bold leading-tight">ניהול<br>המשימות שלך</h1>
+      <p class="muted mt-2">כל התפקידים במקום אחד</p>
     </div>
-    <div class="card p-6 shadow-sm">
-      <div class="flex rounded-xl border border-neutral-200 dark:border-neutral-700 p-1 mb-5">
+    <div class="card p-6">
+      <div class="flex rounded-full surface2 p-1 mb-5">
         <button id="tabLogin" onclick="setAuthMode('login')" class="flex-1 rounded-lg py-2 text-sm font-medium transition">כניסה</button>
         <button id="tabRegister" onclick="setAuthMode('register')" class="flex-1 rounded-lg py-2 text-sm font-medium transition">הרשמה</button>
       </div>
@@ -53,7 +73,7 @@
           <div class="relative">
             <input name="password" id="pwdInput" type="password" required placeholder="לפחות 6 תווים" minlength="6" autocomplete="current-password" class="input w-full ps-10">
             <button type="button" onclick="togglePwd()" aria-label="הצג/הסתר סיסמה"
-              class="absolute start-0 top-0 h-full w-10 flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition">
+              class="absolute start-1 top-0 h-full w-10 flex items-center justify-center muted">
               <span id="pwdEye">👁</span>
             </button>
           </div>
@@ -66,43 +86,32 @@
 </div>
 
 <!-- APP -->
-<div id="appRoot" class="hidden h-full flex flex-col md:flex-row">
-  <aside class="hidden md:flex flex-col w-56 shrink-0 border-s border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 h-full">
-    <div class="p-5 border-b border-neutral-200 dark:border-neutral-800">
-      <div class="text-lg font-bold">📋 לוח תפקידים</div>
-      <div id="sideUser" class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 truncate"></div>
-    </div>
-    <nav class="flex-1 p-3 space-y-1">
-      <button data-nav="tasks"    class="nav-s w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-right">📋 משימות</button>
-      <button data-nav="calendar" class="nav-s w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-right">📅 לוח שנה</button>
-      <button data-nav="account"  class="nav-s w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-right">👤 חשבון</button>
-    </nav>
-    <div class="p-3 border-t border-neutral-200 dark:border-neutral-800">
-      <button onclick="signOut()" class="w-full text-start px-3 py-2 text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition">↩ התנתקות</button>
-    </div>
-  </aside>
-  <div class="flex-1 flex flex-col min-h-0 min-w-0">
-    <div id="pageHeader" class="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center gap-3 shrink-0"></div>
-    <div id="pageContent" class="flex-1 overflow-y-auto px-4 py-4 pb-28 md:pb-6"></div>
+<div id="appRoot" class="hidden min-h-full">
+  <div class="mx-auto w-full max-w-2xl">
+    <div id="pageHeader" class="px-5 pt-7 pb-3"></div>
+    <div id="pageContent" class="px-5 pb-36"></div>
   </div>
-  <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex safe-bottom z-20">
-    <button data-nav="tasks"    class="nav-b flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs">📋<span>משימות</span></button>
-    <button data-nav="calendar" class="nav-b flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs">📅<span>לוח שנה</span></button>
-    <button data-nav="account"  class="nav-b flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs">👤<span>חשבון</span></button>
+  <nav class="fixed bottom-4 inset-x-0 z-20 flex justify-center safe-bottom pointer-events-none">
+    <div class="pointer-events-auto flex gap-2 rounded-full bg-[#151515] p-2 shadow-2xl ring-1 ring-white/10">
+      <button data-nav="tasks" aria-label="משימות" class="nav-b h-14 w-14 rounded-full grid place-items-center transition">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 11h3v9h5v-6h4v6h5v-9h3z"/></svg></button>
+      <button data-nav="calendar" aria-label="לוח שנה" class="nav-b h-14 w-14 rounded-full grid place-items-center transition">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
+      <button data-nav="account" aria-label="חשבון" class="nav-b h-14 w-14 rounded-full grid place-items-center transition">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4.5"/><path d="M3.5 21c.8-4.5 4.3-7 8.5-7s7.7 2.5 8.5 7z"/></svg></button>
+    </div>
   </nav>
-  <button id="fab" onclick="openTaskDlg(null)"
-    class="md:hidden fixed bottom-[4.5rem] start-4 z-30 h-14 w-14 rounded-full bg-neutral-900 dark:bg-white shadow-xl flex items-center justify-center text-2xl text-white dark:text-neutral-900 active:scale-95 transition">+</button>
 </div>
 
 <!-- TASK DIALOG -->
-<dialog id="taskDlg" class="w-[min(28rem,96vw)] card p-0 shadow-2xl" aria-labelledby="taskDlgTitle">
-  <div class="p-5">
-    <div class="flex items-center justify-between mb-4">
-      <h2 id="taskDlgTitle" class="font-semibold">משימה חדשה</h2>
+<dialog id="taskDlg" class="sheet w-[min(30rem,96vw)] rounded-[2rem] p-0 shadow-2xl" aria-labelledby="taskDlgTitle">
+  <div class="p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h2 id="taskDlgTitle" class="text-2xl font-bold">היי, צור משימה חדשה</h2>
       <button onclick="$('taskDlg').close()" aria-label="סגור"
-        class="flex items-center justify-center h-10 w-10 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition text-xl">&times;</button>
+        class="grid place-items-center h-11 w-11 shrink-0 rounded-full bg-[#151515] text-white text-xl">&times;</button>
     </div>
-    <form id="taskForm" onsubmit="handleSaveTask(event)" class="space-y-3">
+    <form id="taskForm" onsubmit="handleSaveTask(event)" class="space-y-4">
       <div>
         <label class="label">כותרת *</label>
         <input name="title" required maxlength="120" placeholder="על מה המשימה?" class="input w-full">
@@ -152,12 +161,8 @@
         <label class="label">תיאור</label>
         <textarea name="desc" rows="2" maxlength="600" class="input w-full resize-none"></textarea>
       </div>
-      <div class="flex items-center gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
-        <button type="button" id="taskDelBtn" class="hidden text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg px-3 py-1.5 transition" onclick="handleDeleteTask()">מחק</button>
-        <div class="flex-1"></div>
-        <button type="button" class="btn-ghost" onclick="$('taskDlg').close()">ביטול</button>
-        <button type="submit" id="taskSaveBtn" class="btn-primary">שמור</button>
-      </div>
+      <button type="submit" id="taskSaveBtn" class="btn-primary w-full py-4 text-base">שמור משימה</button>
+      <button type="button" id="taskDelBtn" class="hidden w-full rounded-full py-2 text-sm font-semibold text-[#151515]/70 hover:bg-black/10" onclick="handleDeleteTask()">מחק</button>
     </form>
   </div>
 </dialog>
@@ -203,7 +208,7 @@
 <script>
 const SB_URL = 'https://gytxwjlicawlfdehszil.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5dHh3amxpY2F3bGZkZWhzemlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1MTUyMzgsImV4cCI6MjEwMTA5MTIzOH0.LIBV2W0FTq4MHlyO2Z4iiPvBBGBP1btJaJ-qzUrig64';
-const PALETTE = ['#2563eb','#db2777','#059669','#d97706','#7c3aed','#0891b2','#dc2626','#65a30d','#0d9488','#9333ea'];
+const PALETTE = ['#cfe08f','#f5cf6b','#e8695a','#dadad5','#a9c7f2','#c9b6f2','#f2b5d4','#9fd8c8','#f4a76b','#b5d99c'];
 
 const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true } });
 const S = {
@@ -227,6 +232,8 @@ const fmtTime = iso => new Date(iso).toLocaleTimeString(HE, {hour:'numeric', min
 const fmtDate = iso => new Date(iso).toLocaleDateString(HE, {month:'short', day:'numeric'});
 const roleColor = id => S.roles.find(r=>r.id===id)?.color || '#94a3b8';
 const roleName  = id => S.roles.find(r=>r.id===id)?.name  || '';
+// dark role colors get mixed toward off-white so the card's dark text stays readable
+const cardBg = c => { const n=parseInt(c.slice(1),16); const L=(.299*(n>>16)+.587*(n>>8&255)+.114*(n&255))/255; return L>.6 ? c : `color-mix(in srgb, ${c} 50%, #f7f6f1)`; };
 
 function toast(msg, type='ok') {
   let el = $('_toast');
@@ -251,8 +258,8 @@ function sbErr(msg) {
 // ── AUTH ──
 function setAuthMode(mode) {
   const login = mode === 'login';
-  const on = 'rounded-lg py-2 text-sm font-medium bg-neutral-900 text-white dark:bg-white dark:text-neutral-900';
-  const off = 'rounded-lg py-2 text-sm font-medium text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100';
+  const on = 'flex-1 rounded-full py-2 text-sm font-bold bg-[#f5cf6b] text-[#151515]';
+  const off = 'flex-1 rounded-full py-2 text-sm font-medium muted';
   $('tabLogin').className = login ? on : off;
   $('tabRegister').className = login ? off : on;
   $('nameField').classList.toggle('hidden', login);
@@ -390,7 +397,7 @@ function toggleTheme() {
   const isDark = document.documentElement.classList.contains('dark');
   const btn = $('darkToggleBtn');
   if (btn) {
-    btn.style.background = isDark ? '#171717' : '#d4d4d8';
+    btn.style.background = isDark ? '#f5cf6b' : '#d4d4d8';
     const knob = btn.querySelector('span');
     if (knob) knob.style.transform = `translateX(${isDark ? '1.375rem' : '0.25rem'})`;
   }
@@ -399,47 +406,53 @@ function toggleTheme() {
 // ── NAV ──
 function navTo(page) {
   S.page = page;
-  document.querySelectorAll('.nav-s,.nav-b').forEach(b => {
+  document.querySelectorAll('.nav-b').forEach(b => {
     const on = b.dataset.nav === page;
-    if (b.classList.contains('nav-s'))
-      b.className = `nav-s w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-right transition ${on ? 'bg-neutral-100 dark:bg-neutral-800 font-medium text-neutral-900 dark:text-neutral-100' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50'}`;
-    else
-      b.className = `nav-b flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs transition ${on ? 'text-neutral-900 dark:text-neutral-100 font-semibold' : 'text-neutral-500 dark:text-neutral-400'}`;
+    b.className = `nav-b h-14 w-14 rounded-full grid place-items-center transition ${on ? 'bg-[#f5cf6b] text-[#151515]' : 'bg-[#2a2a2d] text-white hover:bg-[#38383b]'}`;
+    b.setAttribute('aria-current', on ? 'page' : 'false');
   });
-  $('fab').classList.toggle('hidden', page !== 'tasks');
+  window.scrollTo(0, 0);
   render();
 }
 
 // ── TASK CARD ──
-function taskCard(t, hideDate=false) {
-  const color = roleColor(t.role_id), name = roleName(t.role_id);
+const PRIO = { high:'דחופה', medium:'בינונית', low:'נמוכה' };
+const ICO_CAL = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18"/></svg>`;
+const ICO_CLK = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
+
+function taskCard(t) {
+  const bg = cardBg(roleColor(t.role_id)), name = roleName(t.role_id);
   const overdue = !t.done && new Date(t.due) < dayStart(new Date());
   const tags = Array.isArray(t.tags) ? t.tags.filter(Boolean) : [];
-  const recurIcon = t.recurring ? ' 🔁' : '';
-  return `<div class="flex items-start gap-3 rounded-xl border bg-white dark:bg-neutral-900 p-3 shadow-sm active:opacity-80 transition"
-    style="border-inline-start:3px solid ${color}">
-    <input type="checkbox" data-toggle="${t.id}" ${t.done?'checked':''}
-      class="mt-1 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-600 cursor-pointer"
-      onclick="event.stopPropagation()">
-    <button data-edit="${t.id}" class="min-w-0 flex-1 text-start">
-      <span class="text-base font-medium ${t.done?'line-through text-neutral-400 dark:text-neutral-500':''}">${esc(t.title)}${recurIcon}</span>
-      <div class="mt-1 flex flex-wrap items-center gap-1.5">
-        ${name ? `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" style="background:${color}1f;color:${color}">${esc(name)}</span>` : ''}
-        ${t.priority==='high'&&!t.done ? `<span class="text-xs font-medium text-red-500">🔴 גבוהה</span>` : ''}
-        ${tags.map(g=>`<span class="rounded-full border border-neutral-200 dark:border-neutral-700 px-1.5 py-0.5 text-xs text-neutral-500 dark:text-neutral-400">${esc(g)}</span>`).join('')}
-        ${!hideDate ? `<span class="text-xs ${overdue?'text-red-500 font-medium':'text-neutral-400 dark:text-neutral-500'}">${overdue?'⏰ ':''}${fmtDate(t.due)}, ${fmtTime(t.due)}</span>` : `<span class="text-xs text-neutral-400">${fmtTime(t.due)}</span>`}
-      </div>
-    </button>
+  return `<div data-edit="${t.id}" class="cursor-pointer rounded-[1.75rem] p-5 text-[#151515] transition active:scale-[.99] ${t.done?'opacity-50':''}" style="background:${bg}">
+    <div class="flex items-start gap-3">
+      <button data-edit="${t.id}" class="min-w-0 flex-1 text-start">
+        <h3 class="text-xl font-bold leading-snug break-words ${t.done?'line-through':''}">${esc(t.title)}</h3>
+      </button>
+      <button data-toggle="${t.id}" aria-label="${t.done?'סמן כלא הושלם':'סמן כהושלם'}" aria-pressed="${t.done}"
+        class="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#151515] text-white text-lg transition hover:scale-105">
+        ${t.done?'✓':`<span class="h-4 w-4 rounded-full border-2 border-white/80"></span>`}</button>
+    </div>
+    <div class="mt-3 flex flex-wrap items-center gap-3 text-sm font-semibold">
+      <span class="inline-flex items-center gap-1.5"><span class="grid h-7 w-7 place-items-center rounded-full bg-black/10">${ICO_CAL}</span>${fmtDate(t.due)}</span>
+      <span class="h-4 w-px bg-black/25"></span>
+      <span class="inline-flex items-center gap-1.5"><span class="grid h-7 w-7 place-items-center rounded-full bg-black/10">${ICO_CLK}</span>${fmtTime(t.due)}</span>
+      ${overdue?`<span class="rounded-full bg-[#151515] px-2.5 py-1 text-xs text-white">באיחור</span>`:''}
+    </div>
+    <div class="mt-4 flex items-center gap-2 rounded-full bg-white/75 p-1.5 ps-4">
+      <span class="min-w-0 flex-1 truncate text-sm font-semibold">${esc(name||'ללא תפקיד')}${t.recurring?' · 🔁':''}${tags.length?` <span class="font-normal opacity-60">· ${tags.map(esc).join(' · ')}</span>`:''}</span>
+      <span class="shrink-0 rounded-full px-3 py-1 text-xs font-bold ${t.priority==='high'?'bg-[#151515] text-white':''}" style="${t.priority==='high'?'':`background:${bg}`}">${PRIO[t.priority]||''}</span>
+    </div>
   </div>`;
 }
 
-function section(icon, title, tasks, hideDate=false, empty=null) {
+function section(title, tasks, empty=null) {
   if (!tasks.length && empty===null) return '';
-  return `<section class="mb-5">
-    <h2 class="text-xs font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mb-2">${icon} ${title}</h2>
+  return `<section class="mb-7">
+    <h2 class="mb-3 flex items-baseline gap-2 text-lg font-bold">${title}<span class="text-sm font-medium muted">${tasks.length||''}</span></h2>
     ${tasks.length
-      ? `<div class="space-y-2">${tasks.map(t=>taskCard(t,hideDate)).join('')}</div>`
-      : `<p class="text-sm text-neutral-400 dark:text-neutral-500 py-3 text-center">${empty}</p>`}
+      ? `<div class="space-y-3">${tasks.map(taskCard).join('')}</div>`
+      : `<p class="card py-6 text-center text-sm muted">${empty}</p>`}
   </section>`;
 }
 
@@ -448,6 +461,22 @@ function render() {
   if (S.page === 'tasks') renderTasks();
   else if (S.page === 'calendar') renderCalendar();
   else renderAccount();
+}
+
+function dateStrip() {
+  const today = dayStart(new Date());
+  const days = Array.from({length:15}, (_,i) => addDays(today, i-2));
+  const pill = (val, on, top, bottom) => `<button data-day="${val}" class="pill ${on?'on':''} shrink-0 text-center ${bottom?'py-2':''}">
+    <span class="block">${top}</span>${bottom?`<span class="block text-[.7rem]">${bottom}</span>`:''}</button>`;
+  return `<div id="dayStrip" class="no-sb -mx-5 mb-5 flex gap-2 overflow-x-auto px-5 py-1">
+    ${pill('', !S.day, 'הכל')}
+    ${days.map(d => {
+      const isT = sameDay(d, today), cnt = S.tasks.filter(t=>!t.done&&sameDay(new Date(t.due),d)).length;
+      return pill(d.getTime(), S.day && sameDay(S.day,d),
+        d.toLocaleDateString(HE,{day:'numeric',month:'short'}),
+        isT ? 'היום' : (cnt ? '•'.repeat(Math.min(cnt,3)) : d.toLocaleDateString(HE,{weekday:'short'})));
+    }).join('')}
+  </div>`;
 }
 
 function renderTasks() {
@@ -460,47 +489,51 @@ function renderTasks() {
   const tomorrowT = pend.filter(t=>{ const d=new Date(t.due); return d>=tmrw&&d<dayAfter; });
   const impWeek   = pend.filter(t=>{ const d=new Date(t.due); return t.priority==='high'&&d>=dayAfter&&d<weekEnd; });
   const rest      = pend.filter(t=>{ const d=new Date(t.due); return d>=dayAfter&&!(t.priority==='high'&&d<weekEnd); });
-  const lateCount = overdue.length;
+  const dn = S.user?.user_metadata?.display_name || S.user?.email || '?';
 
   $('pageHeader').innerHTML = `
-    <div class="flex-1 min-w-0">
-      <h1 class="text-base font-semibold">משימות</h1>
-      <p class="text-xs text-neutral-500">${pend.length} פתוחות${lateCount?` · ${lateCount} באיחור`:''}</p>
+    <div class="flex items-center justify-between">
+      <button onclick="openTaskDlg(null)" class="inline-flex items-center gap-2 rounded-full bg-[#f5cf6b] py-1.5 pe-4 ps-1.5 text-sm font-bold text-[#151515] transition hover:opacity-90">
+        <span class="grid h-7 w-7 place-items-center rounded-full bg-[#151515] text-lg leading-none text-white">+</span>משימה חדשה</button>
+      <button data-nav="account" aria-label="חשבון" class="grid h-11 w-11 place-items-center rounded-full surface2 text-lg font-bold">${esc(dn.trim()[0].toUpperCase())}</button>
     </div>
-    <div class="flex items-center gap-2 shrink-0">
-      <button onclick="openTaskDlg(null)" class="hidden md:flex btn-primary items-center gap-1">+ משימה חדשה</button>
-      <button onclick="toggleTheme()" class="rounded-lg border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5 text-sm">
-        <span class="dark:hidden">🌙</span><span class="hidden dark:inline">☀️</span>
-      </button>
-    </div>`;
+    <div class="mt-7 flex items-end justify-between gap-3">
+      <h1 class="text-3xl font-bold leading-tight">ניהול המשימות שלך</h1>
+      ${S.day?`<button data-day="" class="shrink-0 pb-1 text-sm muted hover:underline">ראה הכל</button>`:''}
+    </div>
+    <p class="mt-1 text-sm muted">${pend.length} פתוחות${overdue.length?` · ${overdue.length} באיחור`:''}</p>`;
 
-  const chips = S.roles.length ? `<div class="flex flex-wrap gap-2 mb-4">
-    <button data-rf="" class="rounded-full border px-3 py-1 text-sm transition ${!S.roleFilter?'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900':'border-neutral-300 dark:border-neutral-700 text-neutral-500'}">הכל</button>
-    ${S.roles.map(r=>`<button data-rf="${r.id}" class="rounded-full border px-3 py-1 text-sm transition"
-      style="${S.roleFilter===r.id?`border-color:${r.color};background:${r.color}1f;color:${r.color}`:'border-color:#d4d4d8;color:#a1a1aa'}">${esc(r.name)}</button>`).join('')}
+  const chips = S.roles.length > 1 ? `<div class="no-sb -mx-5 mb-6 flex gap-2 overflow-x-auto px-5">
+    <button data-rf="" class="pill shrink-0 ${!S.roleFilter?'on':''}">כל התפקידים</button>
+    ${S.roles.map(r=>`<button data-rf="${r.id}" class="pill shrink-0 inline-flex items-center gap-1.5 ${S.roleFilter===r.id?'on':''}">
+      <span class="h-2.5 w-2.5 rounded-full" style="background:${r.color}"></span>${esc(r.name)}</button>`).join('')}
   </div>` : '';
 
   if (!S.tasks.length) {
-    $('pageContent').innerHTML = chips + `<div class="text-center py-16">
-      <p class="text-5xl mb-3">📋</p>
-      <p class="font-medium mb-1 text-neutral-700 dark:text-neutral-300">עדיין אין משימות</p>
-      <p class="text-sm text-neutral-400 dark:text-neutral-500 mb-5">הוסף את המשימה הראשונה שלך</p>
+    $('pageContent').innerHTML = `<div class="card px-6 py-14 text-center">
+      <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-[#cfe08f] text-3xl">📋</div>
+      <p class="mb-1 text-lg font-bold">עדיין אין משימות</p>
+      <p class="mb-6 text-sm muted">הוסף את המשימה הראשונה שלך</p>
       <button onclick="openTaskDlg(null)" class="btn-primary">+ משימה חדשה</button>
     </div>`;
     return;
   }
 
-  const doneHtml = S.showDone && done.length ? section('✅','הושלמו', done.slice(0,20)) : '';
-  $('pageContent').innerHTML = chips +
-    section('⏰','באיחור', overdue) +
-    section('📅','היום', todayT, true, '🎉 אין משימות להיום') +
-    section('🌅','מחר', tomorrowT) +
-    section('⭐','חשובות השבוע', impWeek) +
-    section('📂','עוד משימות', rest) +
-    (!pend.length&&!overdue.length ? `<div class="text-center py-16"><p class="text-5xl mb-3">🎉</p><p class="text-neutral-500">כל המשימות הושלמו!</p></div>` : '') +
-    (done.length ? `<button onclick="toggleShowDone()" class="text-sm text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 w-full text-center py-3 mt-2">
-      ${S.showDone?'🔼 הסתר':'🔽 הצג '+done.length+' שהושלמו'}</button>` : '') +
-    doneHtml;
+  let body;
+  if (S.day) {
+    const list = all.filter(t=>sameDay(new Date(t.due),S.day)).sort((a,b)=>a.done-b.done);
+    body = section(sameDay(S.day,today)?'היום':S.day.toLocaleDateString(HE,{weekday:'long',day:'numeric',month:'long'}), list, 'אין משימות ביום הזה');
+  } else {
+    body = section('באיחור', overdue) +
+      section('היום', todayT, '🎉 אין משימות להיום') +
+      section('מחר', tomorrowT) +
+      section('חשובות השבוע', impWeek) +
+      section('בהמשך', rest) +
+      (done.length ? `<button onclick="toggleShowDone()" class="pill mx-auto block">${S.showDone?'הסתר שהושלמו':'הצג '+done.length+' שהושלמו'}</button>` : '') +
+      (S.showDone && done.length ? '<div class="mt-6">'+section('הושלמו', done.slice(0,20))+'</div>' : '');
+  }
+  $('pageContent').innerHTML = dateStrip() + chips + body;
+  document.querySelector('#dayStrip .on')?.scrollIntoView({inline:'center', block:'nearest'});
 }
 
 function toggleShowDone() { S.showDone = !S.showDone; renderTasks(); }
@@ -508,27 +541,28 @@ function toggleShowDone() { S.showDone = !S.showDone; renderTasks(); }
 function renderCalendar() {
   const grid = monthGrid(S.calAnchor), month = S.calAnchor.getMonth();
   const lbl = S.calAnchor.toLocaleDateString(HE, {month:'long', year:'numeric'});
+  const nb = 'grid h-11 w-11 place-items-center rounded-full surface2 text-xl hover:opacity-80';
   $('pageHeader').innerHTML = `
-    <h1 class="text-base font-semibold flex-1">${lbl}</h1>
-    <div class="flex items-center gap-1">
-      <button data-cal="-1" class="rounded-lg border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">&lsaquo;</button>
-      <button data-cal="0"  class="rounded-lg border border-neutral-200 dark:border-neutral-800 px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">היום</button>
-      <button data-cal="1"  class="rounded-lg border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">&rsaquo;</button>
+    <div class="flex items-center justify-between gap-2">
+      <h1 class="text-3xl font-bold">${lbl}</h1>
+      <div class="flex items-center gap-2">
+        <button data-cal="-1" aria-label="חודש קודם" class="${nb}">&rsaquo;</button>
+        <button data-cal="0" class="pill on">היום</button>
+        <button data-cal="1" aria-label="חודש הבא" class="${nb}">&lsaquo;</button>
+      </div>
     </div>`;
-  const head = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-  $('pageContent').innerHTML = `<div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-    <div class="grid grid-cols-7 border-b border-neutral-200 dark:border-neutral-800 text-center text-xs font-medium text-neutral-500 dark:text-neutral-400">
-      ${head.map(h=>`<div class="py-2">${h}</div>`).join('')}
-    </div>
-    <div class="grid grid-cols-7">
-      ${grid.map((d,i)=>{
+  const head = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+  $('pageContent').innerHTML = `<div class="card p-3">
+    <div class="grid grid-cols-7 pb-2 text-center text-xs font-semibold muted">${head.map(h=>`<div>${h}</div>`).join('')}</div>
+    <div class="grid grid-cols-7 gap-1">
+      ${grid.map(d=>{
         const list = S.tasks.filter(t=>!t.done&&sameDay(new Date(t.due),d));
         const isToday = sameDay(d,new Date());
-        return `<div class="min-h-[5rem] border-neutral-200 dark:border-neutral-800 p-1 ${i%7?'border-s':''} ${i>=7?'border-t':''} ${d.getMonth()===month?'':'bg-neutral-50/40 dark:bg-neutral-950/40'}">
-          <div class="text-xs tabular-nums mb-0.5 ${isToday?'inline-flex h-5 w-5 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-bold':'text-neutral-400'}">${d.getDate()}</div>
-          ${list.slice(0,3).map(t=>`<button data-edit="${t.id}" class="block w-full truncate rounded px-1 py-0.5 text-xs text-start mb-0.5 hover:opacity-80"
-            style="background:${roleColor(t.role_id)}1f;color:${roleColor(t.role_id)}">${fmtTime(t.due)} ${esc(t.title)}</button>`).join('')}
-          ${list.length>3?`<button onclick="navTo('tasks')" class="text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 px-1">+${list.length-3}</button>`:''}
+        return `<div class="min-h-[5.5rem] rounded-2xl p-1 ${d.getMonth()===month?'surface2':'opacity-40'}">
+          <div class="mb-1 grid h-6 w-6 place-items-center rounded-full text-xs font-bold tabular-nums ${isToday?'bg-[#f5cf6b] text-[#151515]':''}">${d.getDate()}</div>
+          ${list.slice(0,3).map(t=>`<button data-edit="${t.id}" class="mb-0.5 block w-full truncate rounded-lg px-1.5 py-0.5 text-start text-[.7rem] font-semibold text-[#151515] hover:opacity-80"
+            style="background:${cardBg(roleColor(t.role_id))}">${esc(t.title)}</button>`).join('')}
+          ${list.length>3?`<button data-goday="${d.getTime()}" class="px-1 text-[.7rem] font-semibold muted">+${list.length-3}</button>`:''}
         </div>`;
       }).join('')}
     </div>
@@ -539,10 +573,11 @@ function renderAccount() {
   const user = S.user;
   const dn = user?.user_metadata?.display_name || user?.email?.split('@')[0] || '';
   const isDark = document.documentElement.classList.contains('dark');
-  $('pageHeader').innerHTML = `<h1 class="text-base font-semibold flex-1">חשבון</h1>
-    <button onclick="signOut()" class="btn-ghost text-sm">↩ התנתקות</button>`;
+  $('pageHeader').innerHTML = `<div class="flex items-center justify-between">
+    <h1 class="text-3xl font-bold">חשבון</h1>
+    <button onclick="signOut()" class="pill">התנתקות</button></div>`;
   $('pageContent').innerHTML = `
-    <section class="card p-4 mb-4">
+    <section class="card p-5 mb-4">
       <h2 class="text-sm font-semibold mb-3">👤 פרופיל</h2>
       <div class="space-y-2 text-sm">
         <div>
@@ -556,7 +591,7 @@ function renderAccount() {
       </div>
     </section>
 
-    <section class="card p-4 mb-4">
+    <section class="card p-5 mb-4">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-sm font-semibold">🏷️ תפקידים</h2>
         <button onclick="openRoleDlg(null)" class="text-xs font-medium text-neutral-900 dark:text-neutral-100 hover:underline">+ הוסף</button>
@@ -571,7 +606,7 @@ function renderAccount() {
         : '<p class="text-sm text-neutral-400 py-2 text-center">אין תפקידים עדיין.</p>'}
     </section>
 
-    <section class="card p-4 mb-4">
+    <section class="card p-5 mb-4">
       <h2 class="text-sm font-semibold mb-3">📧 דוח יומי במייל</h2>
       <form id="emailForm" onsubmit="saveEmailSettings(event)" class="space-y-3">
         <div>
@@ -591,13 +626,13 @@ function renderAccount() {
       </form>
     </section>
 
-    <section class="card p-4 mb-4">
+    <section class="card p-5 mb-4">
       <h2 class="text-sm font-semibold mb-3">🎨 מראה</h2>
       <div class="flex items-center justify-between">
         <span class="text-sm">מצב כהה</span>
         <button dir="ltr" type="button" id="darkToggleBtn" onclick="toggleTheme()" aria-label="מצב כהה"
           class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400"
-          style="background:${isDark?'#171717':'#d4d4d8'}">
+          style="background:${isDark?'#f5cf6b':'#d4d4d8'}">
           <span class="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200"
             style="transform:translateX(${isDark?'1.375rem':'0.25rem'})"></span>
         </button>
@@ -611,7 +646,7 @@ async function updateDisplayName() {
   if (!val) return;
   const { error } = await sb.auth.updateUser({ data: { display_name: val } });
   if (error) { toast('שגיאה בעדכון השם', 'err'); return; }
-  const su = $('sideUser'); if (su) su.textContent = val;
+  S.user.user_metadata = { ...S.user.user_metadata, display_name: val };
   toast('שם עודכן ✓');
 }
 
@@ -642,7 +677,8 @@ let _delTaskTimer = null;
 
 function openTaskDlg(task) {
   S.editTask = task || null;
-  $('taskDlgTitle').textContent = task ? 'ערוך משימה' : 'משימה חדשה';
+  $('taskDlgTitle').textContent = task ? 'עריכת משימה' : 'היי, צור משימה חדשה';
+  $('taskSaveBtn').disabled = false; $('taskSaveBtn').textContent = task ? 'שמור שינויים' : 'צור משימה';
   const delBtn = $('taskDelBtn');
   delBtn.classList.toggle('hidden', !task);
   delBtn.textContent = 'מחק'; delete delBtn.dataset.confirming; clearTimeout(_delTaskTimer);
@@ -690,7 +726,7 @@ async function handleSaveTask(e) {
     $('taskDlg').close();
   } catch {
     toast('שגיאה בשמירה', 'err');
-    btn.disabled = false; btn.textContent = 'שמור';
+    btn.disabled = false; btn.textContent = 'נסה שוב';
   }
 }
 
@@ -756,8 +792,10 @@ async function handleDeleteRole() {
 
 // ── GLOBAL CLICKS ──
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-nav],[data-toggle],[data-edit],[data-rf],[data-cal],[data-er]');
+  const b = e.target.closest('[data-nav],[data-toggle],[data-edit],[data-rf],[data-cal],[data-er],[data-day],[data-goday]');
   if (!b) return;
+  if ('day' in b.dataset) { S.day = b.dataset.day ? new Date(+b.dataset.day) : null; renderTasks(); return; }
+  if (b.dataset.goday) { S.day = new Date(+b.dataset.goday); navTo('tasks'); return; }
   if (b.dataset.nav)    { navTo(b.dataset.nav); return; }
   if (b.dataset.toggle) { const t=S.tasks.find(x=>x.id===b.dataset.toggle); if(t) toggleTask(t); return; }
   if (b.dataset.edit)   { const t=S.tasks.find(x=>x.id===b.dataset.edit);   if(t) openTaskDlg(t); return; }
@@ -780,14 +818,12 @@ function setupRealtime() {
 }
 
 // ── INIT ──
-applyTheme(lsGet('td.theme', matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'));
+applyTheme(lsGet('td.theme', 'dark'));
 setAuthMode('login');
 
 sb.auth.onAuthStateChange(async (event, session) => {
   S.user = session?.user || null;
   if (S.user) {
-    const dn = S.user.user_metadata?.display_name || S.user.email;
-    const su = $('sideUser'); if (su) su.textContent = dn;
     await loadData();
     setupRealtime();
     checkImport();
