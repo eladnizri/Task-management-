@@ -48,6 +48,8 @@
   #taskDlg { position:fixed !important; inset:auto 0 0 !important; margin:0 !important; width:100% !important; max-width:100% !important; border-radius:1.5rem 1.5rem 0 0 !important; max-height:92dvh; overflow-y:auto; }
   #taskDlg[open] { animation: sheet-up .28s cubic-bezier(.32,1.1,.64,1) both }
   @keyframes sheet-up { from { transform:translateY(100%) } to { transform:translateY(0) } }
+  @media (min-width:640px) { #taskDlg { width:36rem !important; margin:0 auto !important } }
+  .input.ps-10 { padding-inline-start:2.75rem }
   @media (prefers-reduced-motion: reduce) { dialog[open], dialog::backdrop { animation: none } }
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px) }
   .safe-top { padding-top: env(safe-area-inset-top, 0px) }
@@ -1066,6 +1068,14 @@ async function reorderInGroup(dragId, targetId, group) {
 }
 
 function initGestures() { initDrag(); }
+
+// mouse wheels only scroll vertically; map them onto the horizontal chip strips
+document.addEventListener('wheel', e => {
+  const el = e.target.closest('.no-sb');
+  if (!el || el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+  e.preventDefault();
+  el.scrollBy({ left: -e.deltaY });
+}, { passive: false });
 
 // ── GLOBAL CLICKS ──
 document.addEventListener('click', e => {
