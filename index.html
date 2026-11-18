@@ -49,6 +49,26 @@
   .safe-top { padding-top: env(safe-area-inset-top, 0px) }
   #_toast { position:fixed; bottom:5.5rem; left:50%; transform:translateX(-50%); background:#171717; color:#fff; border-radius:.75rem; padding:.5rem 1.25rem; font-size:.875rem; z-index:200; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; max-width:calc(100vw - 2rem); text-align:center; }
   #_toast.show { opacity:1; }
+  /* ── Swipe actions ── */
+  .swipe-wrap { position:relative; border-radius:1.75rem; overflow:hidden; touch-action:pan-y; }
+  .swipe-bg { position:absolute; inset:0; display:flex; align-items:center; border-radius:1.75rem; pointer-events:none; }
+  .swipe-bg-done { background:#22c55e; padding-inline-start:1.5rem; color:#fff; font-size:1rem; font-weight:700; }
+  .swipe-bg-del  { background:#ef4444; padding-inline-end:1.5rem;  color:#fff; font-size:1rem; font-weight:700; justify-content:flex-end; }
+  .swipe-card { position:relative; z-index:1; border-radius:1.75rem; }
+  /* ── Drag & drop ── */
+  .drag-handle { cursor:grab; padding:.35rem .4rem; opacity:.3; touch-action:none; border-radius:.5rem; transition:opacity .15s; flex-shrink:0; }
+  .drag-handle:active { cursor:grabbing; opacity:.7; }
+  .swipe-wrap.drag-over { outline:2.5px solid var(--accent); outline-offset:2px; }
+  /* ── Subtask progress ── */
+  .sub-bar { height:4px; border-radius:4px; background:rgba(0,0,0,.14); overflow:hidden; }
+  .sub-bar-fill { height:100%; border-radius:4px; background:#151515; transition:width .3s; }
+  /* ── Timeline ── */
+  .tl-row { display:flex; align-items:flex-start; gap:.75rem; min-height:2.75rem; border-top:1px solid var(--line); padding:.4rem 0; }
+  .tl-row:first-child { border-top:none; }
+  .tl-hour { width:2.75rem; color:var(--muted); font-size:.7rem; font-weight:600; padding-top:.25rem; flex-shrink:0; }
+  .tl-tasks { flex:1; display:flex; flex-direction:column; gap:.25rem; }
+  .tl-add { opacity:0; color:var(--muted); font-size:.8rem; padding:.15rem .5rem; cursor:pointer; border-radius:.5rem; transition:opacity .2s; }
+  .tl-row:hover .tl-add { opacity:1; }
 </style>
 </head>
 <body class="h-full antialiased">
@@ -171,6 +191,15 @@
         <label class="label">תיאור</label>
         <textarea name="desc" rows="2" maxlength="600" class="input w-full resize-none"></textarea>
       </div>
+      <div>
+        <label class="label">תת-משימות</label>
+        <div id="subtaskItems" class="space-y-1 mb-2"></div>
+        <div class="flex gap-2">
+          <input id="subtaskInput" type="text" maxlength="120" placeholder="הוסף תת-משימה..." class="input flex-1"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask()}">
+          <button type="button" onclick="addSubtask()" class="btn-primary px-4 py-2 text-sm shrink-0">+</button>
+        </div>
+      </div>
       <button type="submit" id="taskSaveBtn" class="btn-primary w-full py-3 text-sm">שמור משימה</button>
       <button type="button" id="taskDelBtn" class="hidden w-full rounded-full py-2 text-sm font-semibold text-[#151515]/70 hover:bg-black/10" onclick="handleDeleteTask()">מחק</button>
     </form>
@@ -228,7 +257,7 @@ const S = {
   page: 'tasks', calAnchor: new Date(),
   roleFilter: null, showDone: false,
   editTask: null, editRole: null, pendingImport: null,
-  loading: false,
+  loading: false, editSubtasks: [],
 };
 
 const $ = id => document.getElementById(id);
@@ -328,12 +357,21 @@ async function signOut() { await sb.auth.signOut(); location.reload(); }
 
 
 // ── DATA ──
-const TASK_COLS = 'id,title,description,role_id,due,priority,done,tags,recurring,created_at';
+const TASK_COLS = 'id,title,description,role_id,due,priority,done,tags,recurring,created_at,subtasks,sort_order';
 const ok = ({ data, error }) => { if (error) throw error; return data; };
 function putRow(key, row) {
   const arr = S[key], i = arr.findIndex(x => x.id === row.id);
   if (i >= 0) arr[i] = row; else arr.push(row);
-  arr.sort(key === 'tasks' ? (a,b) => new Date(a.due) - new Date(b.due) : (a,b) => a.name.localeCompare(b.name, HE));
+  if (key === 'tasks') {
+    arr.sort((a,b) => {
+      if (a.sort_order != null && b.sort_order != null) return a.sort_order - b.sort_order;
+      if (a.sort_order != null) return -1;
+      if (b.sort_order != null) return 1;
+      return new Date(a.due) - new Date(b.due);
+    });
+  } else {
+    arr.sort((a,b) => a.name.localeCompare(b.name, HE));
+  }
 }
 const dropRow = (key, id) => { S[key] = S[key].filter(x => x.id !== id); };
 
@@ -353,7 +391,7 @@ async function upsertTask(data) {
     user_id: S.user.id, title: data.title, description: data.description || '',
     role_id: data.role_id || null, due: data.due, priority: data.priority,
     done: data.done || false, tags: Array.isArray(data.tags) ? data.tags : [],
-    recurring: data.recurring || null,
+    recurring: data.recurring || null, subtasks: Array.isArray(data.subtasks) ? data.subtasks : [],
   };
   if (data.id) {
     const prev = S.tasks.find(t => t.id === data.id);
@@ -496,46 +534,61 @@ const PRIO = { high:'דחופה', medium:'בינונית', low:'נמוכה' };
 const ICO_CAL = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18"/></svg>`;
 const ICO_CLK = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
 
-function taskCard(t) {
+function taskCard(t, groupKey='') {
   const bg = cardBg(roleColor(t.role_id)), name = roleName(t.role_id);
   const overdue = !t.done && new Date(t.due) < dayStart(new Date());
   const tags = Array.isArray(t.tags) ? t.tags.filter(Boolean) : [];
-  return `<div data-edit="${t.id}" class="cursor-pointer rounded-[1.75rem] p-5 text-[#151515] transition active:scale-[.99] ${t.done?'opacity-50':''}" style="background:${bg}">
-    <div class="flex items-start gap-3">
-      <button data-edit="${t.id}" class="min-w-0 flex-1 text-start">
-        <h3 class="text-xl font-bold leading-snug break-words ${t.done?'line-through':''}">${esc(t.title)}</h3>
-      </button>
-      <button data-toggle="${t.id}" aria-label="${t.done?'סמן כלא הושלם':'סמן כהושלם'}" aria-pressed="${t.done}"
-        class="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#151515] text-white text-lg transition hover:scale-105">
-        ${t.done?'✓':`<span class="h-4 w-4 rounded-full border-2 border-white/80 grid place-items-center text-[.65rem] opacity-25">✓</span>`}</button>
-    </div>
-    <div class="mt-3 flex flex-wrap items-center gap-3 text-base font-semibold">
-      <span class="inline-flex items-center gap-1.5"><span class="grid h-7 w-7 place-items-center rounded-full bg-black/10">${ICO_CAL}</span>${fmtDate(t.due)}</span>
-      <span class="h-4 w-px bg-black/25"></span>
-      <span class="inline-flex items-center gap-1.5"><span class="grid h-7 w-7 place-items-center rounded-full bg-black/10">${ICO_CLK}</span>${fmtTime(t.due)}</span>
-      ${overdue?`<span class="rounded-full bg-[#151515] px-2.5 py-1 text-xs text-white">באיחור</span>`:''}
-    </div>
-    <div class="mt-4 flex items-center gap-2 rounded-full bg-white/75 p-1.5 ps-4">
-      <span class="min-w-0 flex-1 truncate text-sm font-semibold">${esc(name||'ללא תפקיד')}${t.recurring?' · 🔁':''}${tags.length?` <span class="font-normal opacity-60">· ${tags.map(esc).join(' · ')}</span>`:''}</span>
-      <span class="shrink-0 rounded-full px-3 py-1 text-xs font-bold ${t.priority==='high'?'bg-[#151515] text-white':''}" style="${t.priority==='high'?'':`background:${bg}`}">${PRIO[t.priority]||''}</span>
+  const subs = Array.isArray(t.subtasks) ? t.subtasks : [];
+  const doneC = subs.filter(s=>s.done).length;
+  const pct = subs.length ? Math.round(doneC/subs.length*100) : 0;
+  const dragH = groupKey ? `<button class="drag-handle" data-drag="${t.id}" data-group="${groupKey}" type="button" aria-label="גרור לסידור מחדש">
+    <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor"><circle cx="3" cy="2" r="1.5"/><circle cx="9" cy="2" r="1.5"/><circle cx="3" cy="8" r="1.5"/><circle cx="9" cy="8" r="1.5"/><circle cx="3" cy="14" r="1.5"/><circle cx="9" cy="14" r="1.5"/></svg>
+  </button>` : '';
+  return `<div class="swipe-wrap">
+    <div class="swipe-bg swipe-bg-done">✓ הושלם</div>
+    <div class="swipe-bg swipe-bg-del">🗑 מחק</div>
+    <div data-edit="${t.id}" class="swipe-card cursor-pointer rounded-[1.75rem] p-5 text-[#151515] transition active:scale-[.99] ${t.done?'opacity-50':''}" style="background:${bg}">
+      <div class="flex items-start gap-2">
+        ${dragH}
+        <button data-edit="${t.id}" class="min-w-0 flex-1 text-start">
+          <h3 class="text-xl font-bold leading-snug break-words ${t.done?'line-through':''}">${esc(t.title)}</h3>
+        </button>
+        <button data-toggle="${t.id}" aria-label="${t.done?'סמן כלא הושלם':'סמן כהושלם'}" aria-pressed="${t.done}"
+          class="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#151515] text-white text-lg transition hover:scale-105">
+          ${t.done?'✓':`<span class="h-4 w-4 rounded-full border-2 border-white/80 grid place-items-center text-[.65rem] opacity-25">✓</span>`}</button>
+      </div>
+      <div class="mt-3 flex flex-wrap items-center gap-3 text-base font-semibold">
+        <span class="inline-flex items-center gap-1.5"><span class="grid h-7 w-7 place-items-center rounded-full bg-black/10">${ICO_CAL}</span>${fmtDate(t.due)}</span>
+        <span class="h-4 w-px bg-black/25"></span>
+        <span class="inline-flex items-center gap-1.5"><span class="grid h-7 w-7 place-items-center rounded-full bg-black/10">${ICO_CLK}</span>${fmtTime(t.due)}</span>
+        ${overdue?`<span class="rounded-full bg-[#151515] px-2.5 py-1 text-xs text-white">באיחור</span>`:''}
+      </div>
+      <div class="mt-4 flex items-center gap-2 rounded-full bg-white/75 p-1.5 ps-4">
+        <span class="min-w-0 flex-1 truncate text-sm font-semibold">${esc(name||'ללא תפקיד')}${t.recurring?' · 🔁':''}${tags.length?` <span class="font-normal opacity-60">· ${tags.map(esc).join(' · ')}</span>`:''}</span>
+        <span class="shrink-0 rounded-full px-3 py-1 text-xs font-bold ${t.priority==='high'?'bg-[#151515] text-white':''}" style="${t.priority==='high'?'':`background:${bg}`}">${PRIO[t.priority]||''}</span>
+      </div>
+      ${subs.length ? `<div class="mt-3 flex items-center gap-2">
+        <div class="sub-bar flex-1"><div class="sub-bar-fill" style="width:${pct}%"></div></div>
+        <span class="text-xs font-semibold opacity-60">${doneC}/${subs.length}</span>
+      </div>` : ''}
     </div>
   </div>`;
 }
 
-function section(title, tasks, empty=null) {
+function section(title, tasks, empty=null, groupKey='') {
   if (!tasks.length && empty===null) return '';
-  return `<section class="mb-7">
+  return `<section class="mb-7" data-group="${groupKey}">
     <h2 class="mb-3 flex items-baseline gap-2 text-lg font-bold">${title}<span class="text-sm font-medium muted">${tasks.length||''}</span></h2>
     ${tasks.length
-      ? `<div class="space-y-3">${tasks.map(taskCard).join('')}</div>`
+      ? `<div class="space-y-3">${tasks.map(t=>taskCard(t,groupKey)).join('')}</div>`
       : `<p class="card py-6 text-center text-sm muted">${empty}</p>`}
   </section>`;
 }
 
 // ── PAGES ──
 function render() {
-  if (S.page === 'tasks') renderTasks();
-  else if (S.page === 'calendar') renderCalendar();
+  if (S.page === 'tasks') { renderTasks(); requestAnimationFrame(initGestures); }
+  else if (S.page === 'calendar') { renderCalendar(); requestAnimationFrame(initGestures); }
   else renderAccount();
 }
 
@@ -587,13 +640,13 @@ function taskListHtml() {
   let body;
   if (S.day) {
     const list = all.filter(t=>sameDay(new Date(t.due),S.day)).sort((a,b)=>a.done-b.done);
-    body = section(sameDay(S.day,today)?'היום':S.day.toLocaleDateString(HE,{weekday:'long',day:'numeric',month:'long'}), list, 'אין משימות ביום הזה');
+    body = section(sameDay(S.day,today)?'היום':S.day.toLocaleDateString(HE,{weekday:'long',day:'numeric',month:'long'}), list, 'אין משימות ביום הזה', 'day');
   } else {
-    body = section('באיחור', overdue) +
-      section('היום', todayT, '🎉 אין משימות להיום') +
-      section('מחר', tomorrowT) +
-      section('חשובות השבוע', impWeek) +
-      section('בהמשך', rest) +
+    body = section('באיחור', overdue, null, 'overdue') +
+      section('היום', todayT, '🎉 אין משימות להיום', 'today') +
+      section('מחר', tomorrowT, null, 'tomorrow') +
+      section('חשובות השבוע', impWeek, null, 'important') +
+      section('בהמשך', rest, null, 'later') +
       (done.length ? `<button onclick="toggleShowDone()" class="pill mx-auto block">${S.showDone?'הסתר שהושלמו':'הצג '+done.length+' שהושלמו'}</button>` : '') +
       (S.showDone && done.length ? '<div class="mt-6">'+section('הושלמו', done.slice(0,20))+'</div>' : '');
   }
@@ -603,6 +656,7 @@ function taskListHtml() {
 function onSearch(v) {
   S.q = v;
   $('taskList').innerHTML = taskListHtml();
+  requestAnimationFrame(initGestures);
 }
 
 function renderTasks() {
@@ -683,7 +737,7 @@ function renderCalendar() {
       }).join('')}
     </div>
   </div>
-  <div class="mt-6">${section(sameDay(sel,new Date())?'היום':sel.toLocaleDateString(HE,{weekday:'long',day:'numeric',month:'long'}), dayList, 'אין משימות ביום הזה')}</div>`;
+  <div class="mt-6">${timelineHtml(dayList, sel)}</div>`;
 }
 
 function renderAccount() {
@@ -752,20 +806,20 @@ async function updateDisplayName() {
 let _delTaskTimer = null;
 
 function openTaskDlg(task) {
-  S.editTask = task || null;
-  $('taskDlgTitle').textContent = task ? 'עריכת משימה' : 'היי, צור משימה חדשה';
-  $('taskSaveBtn').disabled = false; $('taskSaveBtn').textContent = task ? 'שמור שינויים' : 'צור משימה';
+  S.editTask = task?.id ? task : null; // only treat as edit if has real id
+  $('taskDlgTitle').textContent = task?.id ? 'עריכת משימה' : 'היי, צור משימה חדשה';
+  $('taskSaveBtn').disabled = false; $('taskSaveBtn').textContent = task?.id ? 'שמור שינויים' : 'צור משימה';
   const delBtn = $('taskDelBtn');
-  delBtn.classList.toggle('hidden', !task);
+  delBtn.classList.toggle('hidden', !task?.id);
   delBtn.textContent = 'מחק'; delete delBtn.dataset.confirming; clearTimeout(_delTaskTimer);
   $('roleSelect').innerHTML = `<option value="">ללא תפקיד</option>` +
     S.roles.map(r=>`<option value="${r.id}" ${task?.role_id===r.id?'selected':''}>${esc(r.name)}</option>`).join('');
   const f = $('taskForm'); f.reset();
   $('customDays').classList.add('hidden');
   if (task) {
-    f.title.value = task.title; f.desc.value = task.description || '';
+    f.title.value = task.title || ''; f.desc.value = task.description || '';
     f.due.value = task.due ? toLocalInput(task.due) : '';
-    f.priority.value = task.priority;
+    f.priority.value = task.priority || 'medium';
     f.tags.value = Array.isArray(task.tags) ? task.tags.join(', ') : '';
     if (task.recurring?.startsWith('days:')) {
       $('recurSelect').value = 'custom'; $('customDays').classList.remove('hidden');
@@ -775,6 +829,8 @@ function openTaskDlg(task) {
     const d = new Date(); d.setMinutes(0,0,0); d.setHours(d.getHours()+1);
     f.due.value = toLocalInput(d);
   }
+  S.editSubtasks = Array.isArray(task?.subtasks) ? task.subtasks.map(s=>({...s})) : [];
+  renderSubtasksInDlg();
   $('taskDlg').showModal(); f.title.focus();
 }
 
@@ -797,7 +853,7 @@ async function handleSaveTask(e) {
       role_id: f.get('role') || null, due: new Date(f.get('due')).toISOString(),
       priority: f.get('priority'), done: S.editTask?.done || false,
       tags: (f.get('tags')||'').split(',').map(s=>s.trim()).filter(Boolean),
-      recurring,
+      recurring, subtasks: S.editSubtasks,
     });
     $('taskDlg').close();
   } catch {
@@ -868,8 +924,207 @@ async function handleDeleteRole() {
   catch { toast('המחיקה נכשלה — בדוק חיבור ונסה שוב', 'err'); }
 }
 
+// ── SUBTASKS ──
+function renderSubtasksInDlg() {
+  const el = $('subtaskItems');
+  if (!el) return;
+  el.innerHTML = S.editSubtasks.length ? S.editSubtasks.map((s,i) => `
+    <div class="flex items-center gap-2 rounded-xl bg-white/50 px-3 py-2">
+      <input type="checkbox" ${s.done?'checked':''} onchange="S.editSubtasks[${i}].done=this.checked;renderSubtasksInDlg()" class="h-4 w-4 cursor-pointer">
+      <span class="flex-1 text-sm ${s.done?'line-through opacity-50':''}">${esc(s.text)}</span>
+      <button type="button" onclick="removeSubtask('${s.id}')" class="text-base opacity-40 hover:opacity-80 leading-none">×</button>
+    </div>`).join('') : '';
+}
+
+function addSubtask() {
+  const inp = $('subtaskInput');
+  const text = inp?.value.trim();
+  if (!text) return;
+  S.editSubtasks.push({ id: crypto.randomUUID(), text, done: false });
+  inp.value = '';
+  renderSubtasksInDlg();
+  inp.focus();
+}
+
+function removeSubtask(id) {
+  S.editSubtasks = S.editSubtasks.filter(s => s.id !== id);
+  renderSubtasksInDlg();
+}
+
+// ── TIMELINE (calendar day view) ──
+function timelineHtml(tasks, date) {
+  const lbl = sameDay(date, new Date()) ? 'היום' : date.toLocaleDateString(HE, {weekday:'long', day:'numeric', month:'long'});
+  if (!tasks.length) {
+    return `<section class="mb-7">
+      <h2 class="mb-3 text-lg font-bold">${lbl}</h2>
+      <div class="card p-4 text-center text-sm muted">
+        <p class="mb-2">אין משימות ביום הזה</p>
+        <button onclick="openTaskDlg({due:new Date(${date.getTime()}).toISOString()})" class="btn-primary text-xs py-2 px-4">+ הוסף משימה</button>
+      </div></section>`;
+  }
+  const rows = [];
+  for (let h = 6; h <= 23; h++) {
+    const slotTasks = tasks.filter(t => new Date(t.due).getHours() === h);
+    if (slotTasks.length || tasks.some(t => new Date(t.due).getHours() < 6 && h === 6)) {
+      rows.push({ h, slotTasks });
+    } else {
+      rows.push({ h, slotTasks: [] });
+    }
+  }
+  // Also bucket tasks before 6am into 6am slot
+  const early = tasks.filter(t => new Date(t.due).getHours() < 6);
+  if (early.length && rows[0]) rows[0].slotTasks = [...early, ...rows[0].slotTasks];
+
+  const d = new Date(date); // copy to safely set hours
+  return `<section class="mb-7">
+    <h2 class="mb-3 text-lg font-bold">${lbl}</h2>
+    <div class="card px-4 py-2">
+      ${rows.map(({h, slotTasks}) => {
+        const slotTime = new Date(d); slotTime.setHours(h, 0, 0, 0);
+        return `<div class="tl-row">
+          <div class="tl-hour">${String(h).padStart(2,'0')}:00</div>
+          <div class="tl-tasks">
+            ${slotTasks.map(t => `<div data-edit="${t.id}" class="cursor-pointer rounded-xl px-3 py-1.5 text-sm font-semibold text-[#151515] transition active:scale-[.99] ${t.done?'opacity-50 line-through':''}" style="background:${cardBg(roleColor(t.role_id))}">${esc(t.title)}</div>`).join('')}
+            <button class="tl-add" onclick="openTaskDlg({due:'${slotTime.toISOString()}'})">+ הוסף</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </section>`;
+}
+
+// ── SWIPE GESTURES ──
+let _swipeBlocked = false;
+
+function initSwipe() {
+  document.querySelectorAll('.swipe-wrap').forEach(wrap => {
+    if (wrap._sw) return;
+    wrap._sw = true;
+    const card = wrap.querySelector('.swipe-card');
+    let sx, sy, tracking = false;
+
+    wrap.addEventListener('touchstart', e => {
+      if (e.target.closest('[data-drag]')) return;
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = false;
+    }, {passive:true});
+
+    wrap.addEventListener('touchmove', e => {
+      const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+      if (!tracking) {
+        if (Math.abs(dy) > Math.abs(dx) + 5) return;
+        if (Math.abs(dx) > 10) tracking = true; else return;
+      }
+      e.preventDefault();
+      card.style.transition = 'none';
+      card.style.transform = `translateX(${Math.max(-130, Math.min(130, dx))}px)`;
+    }, {passive:false});
+
+    wrap.addEventListener('touchend', e => {
+      if (!tracking) return;
+      const dx = e.changedTouches[0].clientX - sx;
+      card.style.transition = 'transform .2s';
+      card.style.transform = '';
+      if (Math.abs(dx) > 60) { _swipeBlocked = true; setTimeout(() => _swipeBlocked = false, 250); }
+      if (dx > 60) {
+        const task = S.tasks.find(t => t.id === card.dataset.edit);
+        if (task) toggleTask(task);
+      } else if (dx < -60) {
+        swipeDelete(card.dataset.edit);
+      }
+    }, {passive:true});
+  });
+}
+
+async function swipeDelete(id) {
+  const task = S.tasks.find(t => t.id === id);
+  if (!task) return;
+  dropRow('tasks', id); render();
+  let undone = false;
+  toast('נמחק', 'ok', () => { undone = true; putRow('tasks', task); render(); });
+  setTimeout(async () => {
+    if (!undone) {
+      try { ok(await sb.from('tasks').delete().eq('id', id)); }
+      catch { putRow('tasks', task); render(); toast('שגיאה במחיקה', 'err'); }
+    }
+  }, 3200);
+}
+
+// ── DRAG & DROP REORDER ──
+let _drag = null;
+
+function initDrag() {
+  document.querySelectorAll('[data-drag]').forEach(handle => {
+    if (handle._dr) return;
+    handle._dr = true;
+    handle.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const wrap = handle.closest('.swipe-wrap');
+      const rect = wrap.getBoundingClientRect();
+      const clone = wrap.cloneNode(true);
+      clone.style.cssText = `position:fixed;top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;z-index:300;opacity:.85;pointer-events:none;border-radius:1.75rem;box-shadow:0 12px 32px rgba(0,0,0,.25);transition:transform .05s`;
+      document.body.appendChild(clone);
+      _drag = { id:handle.dataset.drag, group:handle.dataset.group, wrap, clone, startY:e.clientY, hoverWrap:null };
+      wrap.style.opacity = '.25';
+      handle.setPointerCapture(e.pointerId);
+    });
+
+    handle.addEventListener('pointermove', e => {
+      if (!_drag || _drag.id !== handle.dataset.drag) return;
+      const dy = e.clientY - _drag.startY;
+      _drag.clone.style.transform = `translateY(${dy}px)`;
+      const els = [...document.querySelectorAll(`[data-group="${_drag.group}"] .swipe-wrap`)].filter(el=>el!==_drag.wrap);
+      document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'));
+      let hw = null;
+      for (const el of els) {
+        const r = el.getBoundingClientRect();
+        if (e.clientY >= r.top && e.clientY <= r.bottom) { hw = el; break; }
+      }
+      if (hw) hw.classList.add('drag-over');
+      _drag.hoverWrap = hw;
+    });
+
+    handle.addEventListener('pointerup', () => {
+      if (!_drag || _drag.id !== handle.dataset.drag) return;
+      const { id, group, wrap, clone, hoverWrap } = _drag;
+      _drag = null;
+      clone.remove(); wrap.style.opacity = '';
+      document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'));
+      if (hoverWrap) {
+        const targetHandle = hoverWrap.querySelector('[data-drag]');
+        if (targetHandle?.dataset.drag && targetHandle.dataset.drag !== id) {
+          reorderInGroup(id, targetHandle.dataset.drag, group);
+        }
+      }
+    });
+
+    handle.addEventListener('pointercancel', () => {
+      if (!_drag || _drag.id !== handle.dataset.drag) return;
+      const { wrap, clone } = _drag; _drag = null;
+      clone.remove(); wrap.style.opacity = '';
+      document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'));
+    });
+  });
+}
+
+async function reorderInGroup(dragId, targetId, group) {
+  const section = document.querySelector(`[data-group="${group}"]`);
+  if (!section) return;
+  const ids = [...section.querySelectorAll('[data-drag]')].map(h=>h.dataset.drag);
+  const from = ids.indexOf(dragId), to = ids.indexOf(targetId);
+  if (from < 0 || to < 0) return;
+  ids.splice(from, 1); ids.splice(to, 0, dragId);
+  const updates = ids.map((id,i) => ({ id, sort_order: (i+1)*100 }));
+  updates.forEach(({id,sort_order}) => { const t=S.tasks.find(x=>x.id===id); if(t) t.sort_order=sort_order; });
+  render();
+  try { await Promise.all(updates.map(({id,sort_order}) => sb.from('tasks').update({sort_order}).eq('id',id))); }
+  catch { toast('שגיאה בסידור', 'err'); loadData(); }
+}
+
+function initGestures() { initSwipe(); initDrag(); }
+
 // ── GLOBAL CLICKS ──
 document.addEventListener('click', e => {
+  if (_swipeBlocked) return;
   const b = e.target.closest('[data-nav],[data-toggle],[data-edit],[data-rf],[data-cal],[data-er],[data-day],[data-goday]');
   if (!b) return;
   if ('day' in b.dataset) { S.day = b.dataset.day ? new Date(+b.dataset.day) : null; renderTasks(); return; }
