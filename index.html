@@ -51,6 +51,8 @@
   @media (prefers-reduced-motion: reduce) { dialog[open], dialog::backdrop { animation: none } }
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px) }
   .safe-top { padding-top: env(safe-area-inset-top, 0px) }
+  /* Keep viewport stable so iOS URL bar stays hidden and fixed nav doesn't jump */
+  #appRoot { min-height: 100dvh; }
   #_toast { position:fixed; bottom:5.5rem; left:50%; transform:translateX(-50%); background:#171717; color:#fff; border-radius:.75rem; padding:.5rem 1.25rem; font-size:.875rem; z-index:200; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; max-width:calc(100vw - 2rem); text-align:center; }
   #_toast.show { opacity:1; }
   /* ── Drag & drop ── */
