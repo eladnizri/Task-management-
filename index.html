@@ -44,6 +44,10 @@
   @keyframes fade-bd { from { opacity:0 } to { opacity:1 } }
   dialog[open] { animation: slide-up .24s cubic-bezier(.32,1.1,.64,1) both }
   @keyframes slide-up { from { opacity:0; transform:translateY(16px) scale(.97) } to { opacity:1; transform:none } }
+  /* Task dialog — bottom half-sheet */
+  #taskDlg { position:fixed !important; bottom:0 !important; inset-inline:0 !important; margin:0 !important; width:100% !important; max-width:100% !important; border-radius:1.5rem 1.5rem 0 0 !important; max-height:55vh; overflow-y:auto; }
+  #taskDlg[open] { animation: sheet-up .28s cubic-bezier(.32,1.1,.64,1) both }
+  @keyframes sheet-up { from { transform:translateY(100%) } to { transform:translateY(0) } }
   @media (prefers-reduced-motion: reduce) { dialog[open], dialog::backdrop { animation: none } }
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px) }
   .safe-top { padding-top: env(safe-area-inset-top, 0px) }
@@ -134,8 +138,11 @@
 </div>
 
 <!-- TASK DIALOG -->
-<dialog id="taskDlg" class="sheet w-[min(28rem,94vw)] rounded-[1.5rem] p-0 shadow-2xl" aria-labelledby="taskDlgTitle">
-  <div class="p-5">
+<dialog id="taskDlg" class="sheet p-0 shadow-2xl" aria-labelledby="taskDlgTitle">
+  <div class="sticky top-0 z-10 flex justify-center pt-3 pb-1" style="background:var(--coral)">
+    <div class="h-1 w-10 rounded-full bg-black/20"></div>
+  </div>
+  <div class="px-5 pb-5 pt-2">
     <div class="flex items-center justify-between mb-4">
       <h2 id="taskDlgTitle" class="text-xl font-bold">היי, צור משימה חדשה</h2>
       <button onclick="$('taskDlg').close()" aria-label="סגור"
