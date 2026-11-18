@@ -832,7 +832,7 @@ function openTaskDlg(task) {
   }
   S.editSubtasks = Array.isArray(task?.subtasks) ? task.subtasks.map(s=>({...s})) : [];
   renderSubtasksInDlg();
-  $('taskDlg').showModal(); f.title.focus();
+  $('taskDlg').showModal();
 }
 
 function onRecurChange(v) { $('customDays').classList.toggle('hidden', v!=='custom'); }
