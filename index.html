@@ -72,12 +72,14 @@
   .tl-add { opacity:0; color:var(--muted); font-size:.8rem; padding:.15rem .5rem; cursor:pointer; border-radius:.5rem; transition:opacity .2s; }
   .tl-row:hover .tl-add { opacity:1; }
   /* ── Timetable ── */
+  .tt-wrap { border-radius:1.75rem; overflow:hidden; background:var(--surface); }
   .tt-tbl { width:100%; border-collapse:collapse; }
-  .tt-tbl th, .tt-tbl td { border:1px solid var(--line); padding:.4rem .5rem; text-align:center; font-size:.82rem; }
-  .tt-tbl th { font-weight:600; background:var(--surface2); }
-  .tt-tbl .tt-pnum { color:var(--muted); font-size:.75rem; font-weight:600; background:var(--surface2); min-width:1.5rem; }
-  .tt-inp { width:100%; background:transparent; border:none; text-align:center; font:inherit; font-size:.82rem; outline:none; min-width:3.5rem; padding:.15rem .25rem; }
-  .tt-inp:focus { background:var(--surface2); border-radius:.4rem; }
+  .tt-tbl th, .tt-tbl td { padding:.6rem .45rem; text-align:center; font-size:.83rem; border-bottom:1px solid var(--line); }
+  .tt-tbl tbody tr:last-child td { border-bottom:none; }
+  .tt-tbl thead th { font-weight:600; font-size:.78rem; background:var(--surface2); border-bottom:1.5px solid var(--line); }
+  .tt-tbl .tt-pnum { color:var(--muted); font-size:.72rem; font-weight:700; background:var(--surface2); min-width:1.75rem; border-inline-end:1px solid var(--line); }
+  .tt-inp { width:100%; background:transparent; border:none; text-align:center; font:inherit; font-size:.83rem; outline:none; min-width:3.5rem; padding:.15rem .3rem; border-radius:.4rem; transition:background .15s; }
+  .tt-inp:focus { background:var(--surface2); }
 </style>
 </head>
 <body class="h-full antialiased">
@@ -1180,6 +1182,7 @@ function renderTimetable() {
   </div>` : '';
 
   const grid = `<div class="overflow-x-auto -mx-5 px-5">
+    <div class="tt-wrap">
     <table class="tt-tbl">
       <thead><tr>
         <th class="tt-pnum">#</th>
@@ -1199,6 +1202,7 @@ function renderTimetable() {
         }).join('')}
       </tbody>
     </table>
+    </div>
   </div>`;
 
   $('pageContent').innerHTML = classNameRow + grid;
