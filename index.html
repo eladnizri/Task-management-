@@ -71,6 +71,13 @@
   .tl-tasks { flex:1; display:flex; flex-direction:column; gap:.25rem; }
   .tl-add { opacity:0; color:var(--muted); font-size:.8rem; padding:.15rem .5rem; cursor:pointer; border-radius:.5rem; transition:opacity .2s; }
   .tl-row:hover .tl-add { opacity:1; }
+  /* ── Timetable ── */
+  .tt-tbl { width:100%; border-collapse:collapse; }
+  .tt-tbl th, .tt-tbl td { border:1px solid var(--line); padding:.4rem .5rem; text-align:center; font-size:.82rem; }
+  .tt-tbl th { font-weight:600; background:var(--surface2); }
+  .tt-tbl .tt-pnum { color:var(--muted); font-size:.75rem; font-weight:600; background:var(--surface2); min-width:1.5rem; }
+  .tt-inp { width:100%; background:transparent; border:none; text-align:center; font:inherit; font-size:.82rem; outline:none; min-width:3.5rem; padding:.15rem .25rem; }
+  .tt-inp:focus { background:var(--surface2); border-radius:.4rem; }
 </style>
 </head>
 <body class="h-full antialiased">
@@ -131,6 +138,9 @@
       <button data-nav="account" aria-label="חשבון" class="nav-b h-14 w-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4.5"/><path d="M3.5 21c.8-4.5 4.3-7 8.5-7s7.7 2.5 8.5 7z"/></svg>
         <span class="text-[.55rem] font-semibold leading-none">חשבון</span></button>
+      <button data-nav="timetable" aria-label="מערכת שעות" class="nav-b hidden h-14 w-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 9v9M15 9v9"/></svg>
+        <span class="text-[.55rem] font-semibold leading-none">מערכת</span></button>
     </div>
   </nav>
 </div>
@@ -263,6 +273,7 @@ const S = {
   roleFilter: null, showDone: false,
   editTask: null, editRole: null, pendingImport: null,
   loading: false, editSubtasks: [],
+  timetable: null, ttEnabled: false, ttEditMode: false,
 };
 
 const $ = id => document.getElementById(id);
@@ -524,7 +535,10 @@ function navTo(page) {
     const on = b.dataset.nav === page;
     b.className = `nav-b h-14 w-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition-all duration-200 ${on ? 'bg-[#f5cf6b] text-[#151515] scale-105' : 'bg-[#2a2a2d] text-white hover:bg-[#38383b]'}`;
     b.setAttribute('aria-current', on ? 'page' : 'false');
+    if (b.dataset.nav === 'timetable') b.classList.toggle('hidden', !S.ttEnabled);
   });
+  const fab = document.querySelector('button[aria-label="משימה חדשה"]');
+  if (fab) fab.classList.toggle('hidden', page === 'timetable');
   const pc = $('pageContent');
   if (pc) { pc.style.opacity='0'; pc.style.transform='translateY(6px)'; }
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -592,6 +606,7 @@ function section(title, tasks, empty=null, groupKey='') {
 function render() {
   if (S.page === 'tasks') { renderTasks(); requestAnimationFrame(initGestures); }
   else if (S.page === 'calendar') { renderCalendar(); requestAnimationFrame(initGestures); }
+  else if (S.page === 'timetable') renderTimetable();
   else renderAccount();
 }
 
@@ -792,6 +807,19 @@ function renderAccount() {
         <div class="flex surface2 rounded-full p-1 gap-1">
           ${[['light','בהיר'],['dark','כהה'],['system','מערכת']].map(([v,lbl])=>`<button onclick="applyTheme('${v}');renderAccount()" class="rounded-full px-3 py-1 text-xs font-semibold transition ${currentTheme===v?'bg-white dark:bg-[#151515] shadow-sm':''}">${lbl}</button>`).join('')}
         </div>
+      </div>
+    </section>
+
+    <section class="card p-5 mb-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-semibold">📅 מערכת שעות</h2>
+          <p class="text-xs muted mt-0.5">הוסף טאב מערכת שעות אישית</p>
+        </div>
+        <button onclick="toggleTimetableEnabled()" aria-pressed="${S.ttEnabled}"
+          class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ${S.ttEnabled?'bg-[#f5cf6b]':'bg-neutral-300 dark:bg-neutral-600'}">
+          <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${S.ttEnabled?'translate-x-6':'translate-x-1'}"></span>
+        </button>
       </div>
     </section>`;
 }
@@ -1077,6 +1105,148 @@ document.addEventListener('wheel', e => {
   el.scrollBy({ left: -e.deltaY });
 }, { passive: false });
 
+// ── TIMETABLE ──
+const TT_DAYS = ['א׳','ב׳','ג׳','ד׳','ה׳'];
+
+async function loadTimetable() {
+  const { data } = await sb.from('timetables').select('*').eq('user_id', S.user.id).maybeSingle();
+  S.timetable = data || null;
+}
+
+function updateTimetableTab() {
+  document.querySelectorAll('[data-nav="timetable"]').forEach(b => b.classList.toggle('hidden', !S.ttEnabled));
+  if (!S.ttEnabled && S.page === 'timetable') navTo('tasks');
+}
+
+async function toggleTimetableEnabled() {
+  const enabled = !S.ttEnabled;
+  S.ttEnabled = enabled;
+  updateTimetableTab();
+  renderAccount();
+  const { error } = await sb.auth.updateUser({ data: { timetable_enabled: enabled } });
+  if (error) {
+    S.ttEnabled = !enabled;
+    updateTimetableTab();
+    renderAccount();
+    toast('שגיאה בעדכון ההגדרות', 'err');
+    return;
+  }
+  S.user.user_metadata = { ...S.user.user_metadata, timetable_enabled: enabled };
+  if (enabled && S.timetable === null) await loadTimetable();
+  toast(enabled ? 'מערכת שעות הופעלה ✓' : 'מערכת שעות הוסתרה');
+}
+
+function renderTimetable() {
+  const hasRecord = S.timetable !== null;
+  const n = S.timetable?.periods_per_day || 8;
+  const cells = S.timetable?.cells || [];
+  const getCell = (day, period) => cells.find(c => c.day === day && c.period === period)?.subject || '';
+
+  $('pageHeader').innerHTML = `<div class="flex items-center justify-between gap-2">
+    <div>
+      <h1 class="text-3xl font-bold">מערכת שעות</h1>
+      ${hasRecord && S.timetable.class_name ? `<p class="text-sm muted mt-0.5">כיתה ${esc(S.timetable.class_name)}</p>` : ''}
+    </div>
+    ${hasRecord && !S.ttEditMode ? `<button onclick="S.ttEditMode=true;renderTimetable()" class="pill">ערוך מערכת</button>` : ''}
+    ${S.ttEditMode ? `<div class="flex gap-2">
+      <button id="ttSaveBtn" onclick="saveTimetable()" class="btn-primary py-1.5 px-3 text-sm">שמור</button>
+      <button onclick="cancelTimetableEdit()" class="btn-ghost py-1.5 px-3 text-sm">ביטול</button>
+    </div>` : ''}
+  </div>`;
+
+  if (!hasRecord && !S.ttEditMode) {
+    $('pageContent').innerHTML = `<div class="card p-6">
+      <p class="text-4xl mb-3 text-center">📅</p>
+      <h2 class="font-bold text-lg mb-1 text-center">הגדר מערכת שעות</h2>
+      <p class="text-sm muted mb-5 text-center">מלא את פרטי הכיתה שלך</p>
+      <form onsubmit="startTimetableSetup(event)" class="space-y-3">
+        <div>
+          <label class="label">שם כיתה</label>
+          <input id="ttSetupClass" required placeholder='לדוגמה: י״ב ב׳' class="input w-full">
+        </div>
+        <div>
+          <label class="label">כמה שיעורים ביום?</label>
+          <input id="ttSetupPeriods" type="number" required min="1" max="15" value="8" class="input w-full">
+        </div>
+        <button type="submit" class="btn-primary w-full py-3">צור מערכת</button>
+      </form>
+    </div>`;
+    return;
+  }
+
+  const classNameRow = S.ttEditMode ? `<div class="mb-4">
+    <label class="label">שם כיתה</label>
+    <input id="ttClassName" value="${esc(S.timetable?.class_name || '')}" placeholder='לדוגמה: י״ב ב׳' class="input" style="max-width:16rem">
+  </div>` : '';
+
+  const grid = `<div class="overflow-x-auto -mx-5 px-5">
+    <table class="tt-tbl">
+      <thead><tr>
+        <th class="tt-pnum">#</th>
+        ${TT_DAYS.map(d => `<th>${d}</th>`).join('')}
+      </tr></thead>
+      <tbody>
+        ${Array.from({length: n}, (_, i) => {
+          const p = i + 1;
+          return `<tr>
+            <td class="tt-pnum">${p}</td>
+            ${TT_DAYS.map((_, day) => {
+              const subj = getCell(day, p);
+              if (S.ttEditMode) return `<td><input data-tt-day="${day}" data-tt-period="${p}" value="${esc(subj)}" class="tt-inp"></td>`;
+              return `<td class="${!subj ? 'muted' : ''}">${subj ? esc(subj) : '—'}</td>`;
+            }).join('')}
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+
+  $('pageContent').innerHTML = classNameRow + grid;
+}
+
+function startTimetableSetup(e) {
+  e.preventDefault();
+  const className = $('ttSetupClass').value.trim();
+  const periods = Math.min(15, Math.max(1, parseInt($('ttSetupPeriods').value) || 8));
+  S.timetable = { class_name: className, periods_per_day: periods, cells: [] };
+  S.ttEditMode = true;
+  renderTimetable();
+}
+
+function cancelTimetableEdit() {
+  S.ttEditMode = false;
+  if (!S.timetable?.id) S.timetable = null;
+  renderTimetable();
+}
+
+async function saveTimetable() {
+  const btn = $('ttSaveBtn');
+  if (!btn) return;
+  btn.disabled = true; btn.textContent = 'שומר...';
+  const className = ($('ttClassName')?.value ?? S.timetable?.class_name ?? '').trim();
+  const cells = [];
+  document.querySelectorAll('[data-tt-day]').forEach(inp => {
+    const subject = inp.value.trim();
+    if (subject) cells.push({ day: +inp.dataset.ttDay, period: +inp.dataset.ttPeriod, subject });
+  });
+  const row = { user_id: S.user.id, class_name: className, periods_per_day: S.timetable?.periods_per_day || 8, cells };
+  try {
+    let data;
+    if (S.timetable?.id) {
+      ({ data } = await sb.from('timetables').update(row).eq('id', S.timetable.id).select('*').single());
+    } else {
+      ({ data } = await sb.from('timetables').insert(row).select('*').single());
+    }
+    S.timetable = data;
+    S.ttEditMode = false;
+    toast('מערכת שעות נשמרה ✓');
+    renderTimetable();
+  } catch {
+    toast('שגיאה בשמירה — בדוק חיבור', 'err');
+    btn.disabled = false; btn.textContent = 'שמור';
+  }
+}
+
 // ── GLOBAL CLICKS ──
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-nav],[data-toggle],[data-edit],[data-rf],[data-cal],[data-er],[data-day],[data-goday]');
@@ -1118,8 +1288,13 @@ function showApp() { $('authScreen').classList.add('hidden'); $('appRoot').class
 
 async function boot() {
   S.loading = true; S.loadErr = false;
+  S.ttEnabled = !!S.user?.user_metadata?.timetable_enabled;
   navTo(S.page);
-  try { await loadData(); }
+  try {
+    await loadData();
+    if (S.ttEnabled) await loadTimetable();
+    updateTimetableTab();
+  }
   catch (e) { S.loading = false; S.loadErr = true; render(); console.warn('loadData', e); }
   setupRealtime();
   checkImport();
